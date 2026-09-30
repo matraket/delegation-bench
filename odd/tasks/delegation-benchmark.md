@@ -114,6 +114,17 @@ Most valuable axes not covered by the original study: other model families (chil
     - Disk: about 44 MB of new data per arm (package copy plus directory entries), homes about 400 KB each.
     - `node $R/bin/gentle-shell.mjs --home <run home> --package-root .bench/arms/shipped --version`: exit 0, `gentle-shell 3.7.0`, `pi 0.99.1`, home path resolved. Limit: `--version` exits at `bin/gentle-shell.mjs:1217`, before the package-root check at `:1302` (a missing path also exits 0), so this confirms the argv shape only; package loading is first proven by the pilot.
   - Size: about 2,080 authored changed lines (runner about 800, tests and fake pi about 750, arm inputs and fixtures, README about 100), above the 400-line heuristic because runner, arms, homes and driver only work together; not split artificially. No remote yet, so no PR slicing applies.
+  - Commit: `73c2420` `feat: add benchmark runner for delegation arms`.
+  - Parent spot check: `node --test` 63/63; release `cc36bd8d` files `assets/orchestrator.md`, `assets/orchestrator-delegation.md`, `extensions/child-context.ts` byte-identical to the commit.
+  - Native review: assessed high (`high_risk`, executable bit on `run-bench.mjs`) against boundary `8811899`; consent granted; four lenses; approved and acknowledged (lineage `review-85a247d11a45f354`). Reviewed boundary is now `73c2420`. Twelve non-blocking findings, tracked as T3.1.
+- [ ] T3.1 Runner hardening (review follow-ups, not started)
+  - `lib/runner/rpc-client.mjs:99-106` (WARNING, R4 and R3): `close()` sends SIGTERM once and awaits exit with no limit; escalate to SIGKILL or bound the wait.
+  - `lib/runner/arms.mjs:193-195`, `lib/runner/run.mjs:26` (WARNING, R4 and R3): every invocation, including `--dry-run`, deletes and rebuilds `<workDir>/arms/<name>`, shared across run ids; a concurrent live run loses its package root and old manifests point at rebuilt arms. Scope arms per run id or content hash.
+  - `lib/resolve.mjs:59` (WARNING): duplicate or symlinked agent homes make a single session "ambiguous"; de-duplicate by real path.
+  - `lib/runner/driver.mjs:148`, `:212-213` (WARNING): quiet-window default computed in two places that disagree.
+  - `lib/runner/driver.mjs:45-60` (WARNING): pending-record scan reads task files that, per T3 evidence, are only written on completion.
+  - Suggestions: background turn end relies on a timing guess (`driver.mjs:152-155`); pi-exits-mid-turn path untested (`driver.mjs:150`); template `settings.json` keys leak into bench homes (`home.mjs:66`); duplicated test maps and donor paths (`tests/runner-helpers.mjs:13-22`, `tests/runner-arms.test.mjs:121-122`).
+- [ ] T3.2 Runtime target: the user runs the benchmark "in Pi"; confirm whether that means the gentle-shell launcher (as in the reference test session, home `~/.gentle-shell/agent`) or the plain `pi` command (home `~/.pi/agent`, gentle-pi loaded as a local path package). If plain `pi`, launch `pi` with `PI_CODING_AGENT_DIR` and a per-arm `settings.json` package path instead of `--package-root`.
 
 - [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.
 - [ ] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
