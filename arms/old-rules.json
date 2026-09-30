@@ -1,0 +1,70 @@
+{
+	"description": "Pre-#1590 (file-count) rule lines for the old-rules arm. Each entry names the unique line in the shipped asset that starts with `shipped` and the unique line in the donor release asset that starts with `donor`; the whole shipped line is replaced by the whole donor line. The builder fails if an anchor is missing, ambiguous, or the pair changes nothing. The delivery-menu change between the two releases is not part of #1590 and is left as shipped.",
+	"donorRelease": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+	"files": {
+		"assets/orchestrator.md": [
+			{
+				"shipped": "1. **Inline Direct**",
+				"donor": "1. **Inline Direct**"
+			},
+			{
+				"shipped": "1. **Evidence-budget rule**",
+				"donor": "1. **4-file rule**"
+			},
+			{
+				"shipped": "4. **Context backstop**",
+				"donor": "4. **Long-session rule**"
+			},
+			{
+				"shipped": "5. **Verification rule**",
+				"donor": "5. **Verification rule**"
+			}
+		],
+		"assets/orchestrator-delegation.md": [
+			{
+				"shipped": "| Read to decide/verify",
+				"donor": "| Read to decide/verify"
+			},
+			{
+				"shipped": "| Read to explore/understand",
+				"donor": "| Read to explore/understand"
+			},
+			{
+				"shipped": "1. **Mapping trigger",
+				"donor": "1. **Mapping trigger"
+			},
+			{
+				"shipped": "4. **Context backstop:**",
+				"donor": "4. **Long-session backstop"
+			},
+			{
+				"shipped": "5. **Verification rule** (gentle-pi#661/#662, RDD-aware):",
+				"donor": "5. **Verification rule** (gentle-pi#661/#662, RDD-aware):"
+			},
+			{
+				"shipped": "1. **Evidence-budget rule**:",
+				"donor": "1. **4-file rule**:"
+			},
+			{
+				"shipped": "4. **Context backstop**:",
+				"donor": "4. **Long-session rule**:"
+			},
+			{
+				"shipped": "The small-model bias",
+				"donor": "The small-model bias"
+			},
+			{
+				"shipped": "Use inline execution",
+				"donor": "Use inline execution"
+			},
+			{
+				"shipped": "Delegate when work",
+				"donor": "Delegate when work"
+			},
+			{
+				"shipped": "Delegate generic verification",
+				"donor": "Delegate generic verification"
+			}
+		]
+	}
+}

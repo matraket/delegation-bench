@@ -2,10 +2,11 @@
   "name": "delegation-bench",
   "version": "0.1.0",
   "private": true,
-  "description": "Exact cost analyzer for pi / Gentle Shell sessions and their delegated subagent sessions.",
+  "description": "Exact cost analyzer and delegation benchmark runner for pi / Gentle Shell sessions and their delegated subagent sessions.",
   "type": "module",
   "bin": {
-    "analyze-sessions": "./analyze-sessions.mjs"
+    "analyze-sessions": "./analyze-sessions.mjs",
+    "run-bench": "./run-bench.mjs"
   },
   "engines": {
     "node": ">=24"

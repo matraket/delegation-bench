@@ -94,10 +94,27 @@ Most valuable axes not covered by the original study: other model families (chil
   - Parent spot check: `node --test` 31/31; `--profile ""` exits 1 with the empty-selection error.
   - Native review: assessed medium against the reviewed boundary `8811899`, `review_due` false (`under_budget`); pending in the slice until a later commit reaches the budget.
 
-- [ ] T3 Benchmark runner
+- [x] T3 Benchmark runner
   - Route: delegated direct (writer trigger: runner modules, arm builder and tests are 2+ non-trivial files).
   - Acceptance: builds isolated homes and per-arm package copies under a gitignored work directory; drives a multi-turn RPC session per arm and repetition from a question file; waits for settle plus child completion with a per-turn deadline; auto-answers or logs UI requests; records session files and per-turn stats; runs the T1 analyzer at the end; dry-run mode that builds everything and prints the plan without calling a model. Also closes the T2 follow-up (`Object.hasOwn` in `selectProfiles`).
   - Checks: `node --test` with a fake RPC pi; dry run over all arms. No live model call without explicit user approval.
+  - Done: `run-bench.mjs` plus `lib/runner/` (`jsonl`, `rpc-client`, `driver`, `arms`, `home`, `plan`, `run`); versioned arm inputs under `arms/` (`old-rules.json` line map, `rules/inline.md`, `rules/delegate.md`, `fixtures/managed-blocks-AGENTS.md` with placeholder bodies); README section "Benchmark runner"; `.bench/` gitignored.
+  - Arms: package files copied, `node_modules` hardlinked to the release (except `node_modules/.cache`, created empty because jiti writes there), patched files written as new inodes. `old-rules` applies 15 line replacements (4 in `orchestrator.md`, 11 in `orchestrator-delegation.md`, all #1590 lines; the unrelated delivery-menu change stays as shipped); against the real release, patched `orchestrator.md` is byte-identical to the `289cee5b` one. `inline` and `delegate` replace the Mandatory Delegation Triggers block (through rule 5); `inline` adds `--exclude-tools` for `subagent_list_agents,subagent_run,subagent_status,subagent_result,subagent_list_tasks,subagent_reply,subagent_cancel,subagent_send_message,subagent_continue`. Non-lean arms drop `extensions/child-context.ts` only. The builder enforces the 8 KiB rendered budget (bytes: old-rules 6,950, inline 7,002, shipped 7,377, delegate 7,160).
+  - Homes: settings.json keeps only `npm:@gtrabanco/pi-nan-provider` (copied from the template `npm/` install) and adds `-builtin:codemode` (the launcher does this only for homes it owns); `subagents.json` routes all 10 agents to the run model, `history_max_tasks` 1,000,000; credentials are never read or copied (test with decoy `auth.json`).
+  - Driver: LF-only framing with StringDecoder; turn ends on `agent_settled` with no pending task (event stream plus task records) and a quiet window (1 s, 5 s with background on) measured from the later of settle and last task finish; `handled` disposition does not wait; dialog UI requests answered `cancelled: true`; deadline sends `abort` and ends the run.
+  - Finding: task records are written only when a task finishes (`extensions/gentle-agents.ts:569-575`), so queued/running tasks are tracked from `details.gentleAgents` in the event stream, and the records only confirm completion.
+  - Test-first evidence:
+    - RED: `node --test` 40 tests, 31 pass, 9 fail (4 runner modules missing, 4 CLI tests, `--profile toString` accepted).
+    - GREEN: 62 pass, 0 fail.
+    - Second cycle: the first real dry run failed with EEXIST because the watch `current` path is a symlink and `fs.cp` copied the link itself; no file in the release changed (`fd --changed-within` count 0). RED test "a source given through a symlink ... is copied as a real tree" failed with the same EEXIST; fix resolves real paths and refuses a copy that is not a real directory. GREEN 63 pass, 0 fail.
+  - Verification:
+    - `node --test`: 63 tests, 63 pass, 0 fail (about 3 s).
+    - `env -u NAN_API_KEY node run-bench.mjs --dry-run --arms all --questions tests/fixtures/questions.example.json --run-id dryrun-verify`: exit 0 in 5.3 s; 6 arms built (23,922 hardlinks each, 0 copies), 6 homes, commands printed, "dry run: no model session was started".
+    - `old-rules` arm: `assets/orchestrator.md:54` is `1. **4-file rule** ...`, `:57` is `4. **Long-session rule** ...`; `shipped-nonlean/extensions` has `child-safety.ts` and no `child-context.ts`; release unchanged after the build.
+    - Disk: about 44 MB of new data per arm (package copy plus directory entries), homes about 400 KB each.
+    - `node $R/bin/gentle-shell.mjs --home <run home> --package-root .bench/arms/shipped --version`: exit 0, `gentle-shell 3.7.0`, `pi 0.99.1`, home path resolved. Limit: `--version` exits at `bin/gentle-shell.mjs:1217`, before the package-root check at `:1302` (a missing path also exits 0), so this confirms the argv shape only; package loading is first proven by the pilot.
+  - Size: about 2,080 authored changed lines (runner about 800, tests and fake pi about 750, arm inputs and fixtures, README about 100), above the 400-line heuristic because runner, arms, homes and driver only work together; not split artificially. No remote yet, so no PR slicing applies.
+
 - [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.
 - [ ] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
 - [ ] T6 Full runs (arms x models x repetitions, long sessions beyond 16 turns).
@@ -105,4 +122,4 @@ Most valuable axes not covered by the original study: other model families (chil
 
 ## Next step
 
-T3 by one delegated writer. Gentle AI #5139 was closed on 2026-09-30 by PR #5147 (evidence budget in the Gentle AI assets); the benchmark measures the shipped rules against the alternatives.
+T4 question set, and replace the placeholder bodies in `arms/fixtures/managed-blocks-AGENTS.md` with the real managed content before any `managed-blocks` run; then a quota forecast for T5. Gentle AI #5139 was closed on 2026-09-30 by PR #5147 (evidence budget in the Gentle AI assets); the benchmark measures the shipped rules against the alternatives.

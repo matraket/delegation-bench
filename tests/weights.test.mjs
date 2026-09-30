@@ -45,3 +45,9 @@ test("an explicit but empty profile selection is rejected", () => {
 	assert.throws(() => selectProfiles([]), /--profile selects no weight profiles/);
 	assert.throws(() => selectProfiles([], '{"input":1,"cacheRead":1,"cacheWrite":1,"output":1}'), /--profile selects no weight profiles/);
 });
+
+test("prototype keys are not weight profiles", () => {
+	for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+		assert.throws(() => selectProfiles([name]), new RegExp(`unknown weight profile: ${name}`));
+	}
+});

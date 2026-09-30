@@ -1,8 +1,9 @@
 # delegation-bench
 
 Exact, reproducible token cost analyzer for pi / Gentle Shell sessions and the
-subagent (child) sessions they delegated to. It supports the delegation cost
-study in Gentleman-Programming/gentle-ai#5139.
+subagent (child) sessions they delegated to, plus a benchmark runner that
+drives Gentle Shell sessions per rule arm (see [Benchmark runner](#benchmark-runner)).
+It supports the delegation cost study in Gentleman-Programming/gentle-ai#5139.
 
 - Node 24, ESM, no dependencies (`node:` builtins only).
 - Read-only: it never writes to session files or task records.
@@ -154,3 +155,97 @@ Tokens  = { input, cacheRead, cacheWrite, output }
 
 `firstPrefix`, `peakPrompt` and `finalContext` are `null` for a session without
 billed turns.
+
+## Benchmark runner
+
+`run-bench.mjs` replicates the #5139 method on Gentle Shell: one multi-turn
+RPC session per arm x model x repetition, each in a fresh isolated agent home,
+followed by the analyzer over the parent session and its children.
+
+```bash
+# Build every arm and home and print the exact commands; no model session.
+node run-bench.mjs --dry-run --questions questions.json --arms all
+
+# Live run (needs NAN_API_KEY in the environment; never read from auth.json).
+node run-bench.mjs --questions questions.json --arms shipped,delegate --repetitions 3
+```
+
+`node run-bench.mjs --help` lists every option. A run spec (`--spec file.json`)
+takes the same keys in camelCase (`arms`, `models`, `repetitions`,
+`contextFixture`, `background`, `thinking`, `turnDeadlineSec`, `questions`,
+`source`, `donor`, `templateHome`, `workDir`, ...); flags override it.
+
+### Question file
+
+```json
+{ "id": "set-1", "cwd": "../target-repo", "turns": [
+  { "id": "q1", "prompt": "...", "deadlineSec": 600 },
+  { "id": "q1-followup", "prompt": "..." }
+] }
+```
+
+`cwd` (relative to the file, or `--cwd`) is the session working directory.
+Turns run in order in one session. `tests/fixtures/questions.example.json` is a
+test-only example.
+
+### Arms
+
+Each arm is a copy of the Gentle Shell release under `.bench/arms/<arm>`,
+selected with the launcher's `--package-root` (the orchestrator rules are read
+from the package and appended to the primary session only). Package files are
+real copies; `node_modules` is hardlinked to the release (about 44 MB of new
+disk per arm instead of 260 MB), except `node_modules/.cache`, which starts empty.
+
+| Arm | Rules | Children | Tools |
+|-----|-------|----------|-------|
+| `old-rules` | pre-#1590 file-count rule lines (`arms/old-rules.json`, from release `289cee5b`) | lean | all |
+| `inline` | `arms/rules/inline.md` replaces the Mandatory Delegation Triggers block | lean | `--exclude-tools` for the 9 `subagent_*` tools |
+| `shipped` | unchanged | lean | all |
+| `shipped-nonlean` | unchanged | non-lean (no `extensions/child-context.ts`) | all |
+| `delegate` | `arms/rules/delegate.md` replaces the trigger block | lean | all |
+| `delegate-nonlean` | as `delegate` | non-lean | all |
+
+The builder fails if an anchor or the trigger block is missing, and if the
+rendered `assets/orchestrator.md` exceeds the 8 KiB orchestrator budget. Every
+arm root holds `bench-arm.json` (patches with line numbers, removed files, bytes).
+
+### Homes
+
+Per run: `.bench/runs/<run-id>/<arm>/<model>/rep-<n>/home`, built from the
+template home (default `~/.gentle-shell/agent`). Only `settings.json`,
+`npm/package.json`, the kept npm packages (default `npm:@gtrabanco/pi-nan-provider`)
+and `agents/*.md` are read; credentials are never read or copied.
+`settings.json` keeps only the kept packages and sets the run model;
+`subagents.json` routes every agent to the run model with `history_max_tasks`
+raised. `--context managed-blocks` seeds `AGENTS.md` from
+`arms/fixtures/managed-blocks-AGENTS.md` (placeholder bodies, real markers).
+
+The launch environment adds `GENTLE_SHELL_HOME`, `GENTLE_SHELL_CONFIG`,
+`GENTLE_PI_CONFIG_HOME` (all inside the run directory),
+`GENTLE_SHELL_NO_AUTO_SETUP=1`, `DO_NOT_TRACK=1` and
+`GENTLE_PI_BACKGROUND_SUBAGENTS=on|off`, and removes inherited
+`GENTLE_PI_AGENTS*`, `PI_CODING_AGENT_DIR`, `GENTLE_PI_AGENT_HOME` and
+`GENTLE_SHELL_PI`.
+
+### Turn completion
+
+The driver frames RPC records on LF only (not `readline`). A turn ends when
+`agent_settled` has fired, no subagent task seen in the event stream (or
+recorded for this parent under `gentle-agents/tasks/`) is still queued or
+running, and no new run starts during a quiet window (1 s, or 5 s with
+background subagents, whose completions re-trigger the parent). A `prompt`
+answered with disposition `handled` does not wait. Dialog UI requests are
+answered with `cancelled: true` and recorded. A turn past its deadline is
+aborted and ends the run.
+
+### Output per run
+
+- `manifest.json`: arm, model, repetition, home, package root, command,
+  environment overrides (the key only as `<set>`), session file, per-turn
+  timing, disposition, status, `get_session_stats`, last assistant text,
+  background tasks, UI requests, errors, exit, analysis summary.
+- `analysis.json`: the analyzer report (`schemaVersion 1`) for the parent
+  session, with the run home as the child search root.
+- `events.jsonl` (every record in both directions) and `stderr.log`.
+
+The exit code is 0 when every run completed, 2 when any run did not, 1 on errors.

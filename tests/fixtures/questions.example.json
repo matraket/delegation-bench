@@ -1,0 +1,9 @@
+{
+	"id": "example",
+	"description": "Tiny example for runner tests only; the real question set is T4.",
+	"cwd": ".",
+	"turns": [
+		{ "id": "q1", "prompt": "What does this repository do? Answer in one sentence." },
+		{ "id": "q1-followup", "prompt": "Name one file that supports your answer." }
+	]
+}

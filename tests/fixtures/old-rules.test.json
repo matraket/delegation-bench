@@ -1,0 +1,21 @@
+{
+	"donorRelease": "synthetic",
+	"files": {
+		"assets/orchestrator.md": [
+			{
+				"shipped": "1. **Evidence-budget rule**",
+				"donor": "1. **4-file rule**"
+			},
+			{
+				"shipped": "4. **Context backstop**",
+				"donor": "4. **Long-session rule**"
+			}
+		],
+		"assets/orchestrator-delegation.md": [
+			{
+				"shipped": "1. **Mapping trigger (Evidence-budget rule):**",
+				"donor": "1. **Mapping trigger (4-file rule):**"
+			}
+		]
+	}
+}
