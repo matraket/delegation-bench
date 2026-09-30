@@ -52,7 +52,14 @@ Most valuable axes not covered by the original study: other model families (chil
     - `node --test`: 25 tests, 25 pass, 0 fail.
     - `node analyze-sessions.mjs 01a0f398-30dd-77f4-904c-c5509db04291 --json`: 10 turns, input 42,171, cacheRead 357,696, cacheWrite 0, output 1,056, first prefix 38,336, final context 41,922, nan/glm5.3-flash, 0 zero-usage turns (exact match).
     - `node analyze-sessions.mjs 01a0bad5-cbd5-744c-ab32-bb1f41fd0901`: 9 gentle-ai-worker children (nan/glm5.3-flash), 0 unresolved; child `01a0bb02` cross-checked with jq against the raw file (4 turns, input 35,001, cacheRead 39,680, output 3,702, first 16,971, final 20,426) and matches; handoff 2,023 chars = 506 estimated tokens.
-  - Commit: the T1 work-unit commit `feat: add session cost analyzer` on `feat/session-cost-analyzer` (hash reported in the handoff, see `git log`).
+  - Commit: `8811899` `feat: add session cost analyzer` on `feat/session-cost-analyzer`.
+  - Parent spot check: `node --test` 25/25; reference session re-run matches, cost api 83,220.6 and nan 400,923 recomputed by hand.
+  - Native review: assessed medium, `review_due` (`slice_budget_reached`); consent granted; one reliability lens; approved and acknowledged (lineage `review-2bf45063b13545e6`). Four non-blocking findings, tracked as T2.
+- [ ] T2 Analyzer hardening (review follow-ups, not started)
+  - `lib/weights.mjs:49-54` (WARNING): a custom `--weights` profile named `api` or `nan` silently replaces the built-in one and is still labelled as built-in. Reject or report the collision.
+  - `analyze-sessions.mjs:36`: `--profile ""` yields no profiles and no cost columns without an error.
+  - `lib/resolve.mjs:29`: session search is in readdir order; sort it so id resolution is deterministic.
+  - `lib/children.mjs:94`: the recorded-`sessionPath` branch has no test (fixtures only exercise the basename fallback).
 
 ## Next step
 
