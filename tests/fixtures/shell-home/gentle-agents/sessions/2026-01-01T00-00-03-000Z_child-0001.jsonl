@@ -1,0 +1,6 @@
+{"type":"session","version":3,"id":"child-0001","timestamp":"2026-01-01T00:00:03.000Z","cwd":"/tmp/proj"}
+{"type":"message","id":"c1","parentId":null,"timestamp":"2026-01-01T00:00:04.000Z","message":{"role":"user","content":[{"type":"text","text":"map"}]}}
+{"type":"message","id":"c2","parentId":"c1","timestamp":"2026-01-01T00:00:05.000Z","message":{"role":"assistant","content":[],"provider":"nan","model":"m3","usage":{"input":500,"output":20,"cacheRead":0,"cacheWrite":0,"totalTokens":520},"stopReason":"toolUse"}}
+{"type":"message","id":"c3","parentId":"c2","timestamp":"2026-01-01T00:01:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"handoff-a:012345678901234567890123456789"}],"provider":"nan","model":"m3","usage":{"input":10,"output":30,"cacheRead":500,"cacheWrite":0,"totalTokens":540},"stopReason":"stop"}}
+{"type":"message","id":"c4","parentId":"c3","timestamp":"2026-01-01T00:03:10.000Z","message":{"role":"user","content":[{"type":"text","text":"continue"}]}}
+{"type":"message","id":"c5","parentId":"c4","timestamp":"2026-01-01T00:03:20.000Z","message":{"role":"assistant","content":[{"type":"text","text":"handoff-c:ok"}],"provider":"nan","model":"m3","usage":{"input":50,"output":15,"cacheRead":510,"cacheWrite":0,"totalTokens":575},"stopReason":"stop"}}
