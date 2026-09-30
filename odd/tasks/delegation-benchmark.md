@@ -76,7 +76,10 @@ Most valuable axes not covered by the original study: other model families (chil
     - `... --profile ""`: exit 1, `analyze-sessions: --profile selects no weight profiles; name at least one (for example api,nan)`.
     - `node analyze-sessions.mjs 01a0bad5-cbd5-744c-ab32-bb1f41fd0901 --json`: still 9 children, 0 unresolved, no ambiguity on real data.
   - Follow-up (not fixed, out of T2 scope): `selectProfiles` checks names with `in`, so a prototype key such as `--profile toString` is accepted with no weights and reports a `null` cost (observed); `Object.hasOwn` would close it.
+  - Commit: `a09c2d4` `fix: harden analyzer profile and session resolution`.
+  - Parent spot check: `node --test` 31/31; `--profile ""` exits 1 with the empty-selection error.
+  - Native review: assessed medium against the reviewed boundary `8811899`, `review_due` false (`under_budget`); pending in the slice until a later commit reaches the budget.
 
 ## Next step
 
-Decide the benchmark runner and question set (depends on whether Alan shares his harness).
+Decide the benchmark runner and question set (depends on whether Alan shares his harness). Gentle AI #5139 was closed on 2026-09-30 by PR #5147 (evidence budget in the Gentle AI assets); the benchmark now measures the shipped rules.
