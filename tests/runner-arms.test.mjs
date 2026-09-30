@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { lstat, mkdtemp, readdir, readFile, readlink, stat, symlink, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARM_NAMES, SUBAGENT_TOOLS, applyLineMap, buildArm, loadOldRulesMap, replaceTriggerBlock } from "../lib/runner/arms.mjs";
+import { DEFAULTS } from "../lib/runner/plan.mjs";
 import { TEST_LINE_MAP, makeSource } from "./runner-helpers.mjs";
 
 async function build(name, extra = {}) {
@@ -98,12 +99,43 @@ test("a source given through a symlink (like the watch `current` link) is copied
 	assert.ok(existsSync(join(arm.root, "node_modules/dep/index.js")));
 });
 
-test("rebuilding an arm replaces the previous copy", async () => {
+test("identical inputs reuse the existing arm root untouched", async () => {
 	const { source, donor, root } = await makeSource();
 	const workDir = join(root, "work");
-	await buildArm("shipped-nonlean", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP });
+	const first = await buildArm("shipped-nonlean", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP });
+	assert.equal(first.reused, false);
+	// State a live run leaves in its package root (jiti writes node_modules/.cache).
+	const sentinel = join(first.root, "node_modules/.cache/live-run.txt");
+	await writeFile(sentinel, "in use");
+	const before = await stat(first.root);
 	const again = await buildArm("shipped-nonlean", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP });
+	assert.equal(again.root, first.root);
+	assert.equal(again.reused, true);
+	assert.equal(again.key, first.key);
+	assert.equal(await readFile(sentinel, "utf8"), "in use");
+	assert.equal((await stat(first.root)).ino, before.ino);
 	assert.ok(!existsSync(join(again.root, "extensions/child-context.ts")));
+});
+
+test("changed inputs build a new arm root and never delete the previous one", async () => {
+	const { source, donor, root } = await makeSource();
+	const workDir = join(root, "work");
+	const first = await buildArm("inline", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP });
+	const rulesDir = await mkdtemp(join(tmpdir(), "bench-rules-"));
+	await writeFile(join(rulesDir, "inline.md"), "Always answer inline.\n");
+	const second = await buildArm("inline", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP, rulesDir });
+	assert.notEqual(second.root, first.root);
+	assert.match(await readFile(join(second.root, "assets/orchestrator.md"), "utf8"), /Always answer inline\./);
+	assert.ok(existsSync(join(first.root, "bench-arm.json")));
+	assert.doesNotMatch(await readFile(join(first.root, "assets/orchestrator.md"), "utf8"), /Always answer inline/);
+	// A changed source package file changes the key even when no patch differs.
+	await writeFile(join(source, "extensions/gentle-agents.ts"), "// changed release\n");
+	const third = await buildArm("inline", { source, donor, workDir, oldRulesMap: TEST_LINE_MAP });
+	assert.notEqual(third.root, first.root);
+	assert.ok(existsSync(join(first.root, "bench-arm.json")));
+	// Every root is named <arm>-<key> under <workDir>/arms, and no temporary build is left behind.
+	assert.deepEqual((await readdir(join(workDir, "arms"))).sort(), [first.root, second.root, third.root].map((path) => path.split("/").pop()).sort());
+	for (const arm of [first, second, third]) assert.match(arm.root.split("/").pop(), /^inline-[0-9a-f]{12}$/);
 });
 
 test("a rule text that breaks the 8 KiB orchestrator budget is refused", async () => {
@@ -118,8 +150,7 @@ test("unknown arms and drifted anchors fail loudly", async () => {
 	assert.throws(() => replaceTriggerBlock("no block here", "rule"), /trigger block/);
 });
 
-const RELEASE = join(homedir(), ".local/share/gentle-pi-main-watch/current");
-const DONOR = join(homedir(), ".local/share/gentle-pi-main-watch/releases/289cee5baad8bafd0d4fb3ea7f28143564edfb84.20260930T141503Z");
+const { source: RELEASE, donor: DONOR } = DEFAULTS;
 
 test("the real old-rules map turns the shipped orchestrator.md into the pre-#1590 one", { skip: !existsSync(join(RELEASE, "assets")) || !existsSync(join(DONOR, "assets")) }, async () => {
 	const map = await loadOldRulesMap();

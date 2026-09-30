@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { defaultAgentHomes, findSessionFilesById, resolveSessionArg } from "../lib/resolve.mjs";
@@ -47,6 +47,19 @@ test("reports an id that matches several session files instead of picking one", 
 	});
 	assert.deepEqual(await findSessionFilesById("dup-0001", [homeA, homeB]), expected);
 	assert.equal(await resolveSessionArg("one-0001", [homeA, homeB]), files[3]);
+});
+
+test("a repeated or symlinked agent home does not make one session ambiguous", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "delegation-bench-resolve-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const home = join(root, "home");
+	const alias = join(root, "home-alias");
+	const file = join(home, "sessions", "--cwd--", "2026-01-01T00-00-00-000Z_same-0001.jsonl");
+	await mkdir(dirname(file), { recursive: true });
+	await writeFile(file, "");
+	await symlink(home, alias);
+	assert.deepEqual(await findSessionFilesById("same-0001", [home, home, alias]), [file]);
+	assert.equal(await resolveSessionArg("same-0001", [alias, home]), join(alias, "sessions", "--cwd--", "2026-01-01T00-00-00-000Z_same-0001.jsonl"));
 });
 
 test("fails clearly for an unknown id or a missing path", async () => {

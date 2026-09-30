@@ -1,18 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RpcClient } from "../lib/runner/rpc-client.mjs";
-import { driveSession } from "../lib/runner/driver.mjs";
+import { DRIVER_DEFAULTS, driveSession, resolveDriverOptions } from "../lib/runner/driver.mjs";
 
 const FAKE_PI = fileURLToPath(new URL("./fixtures/fake-pi.mjs", import.meta.url));
 const FAST = { deadlineMs: 5000, quietMs: 50, pollMs: 10, requestTimeoutMs: 5000, abortGraceMs: 2000 };
 
-async function session(turns, options = {}) {
+async function session(turns, options = {}, { seed } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), "bench-driver-"));
 	const home = join(dir, "home");
+	await seed?.(home);
 	const logPath = join(dir, "events.jsonl");
 	const client = new RpcClient({
 		command: process.execPath,
@@ -86,4 +87,34 @@ test("with background subagents, a turn ends only after the task finished and th
 	assert.equal(turn.status, "settled");
 	assert.equal(turn.lastAssistantText, "background result integrated");
 	assert.deepEqual(turn.backgroundTasks.map(({ taskId, status }) => ({ taskId, status })), [{ taskId: "bg-task-1", status: "completed" }]);
+});
+
+test("pi exiting in the middle of a turn ends the run with status exited and the exit code", async () => {
+	const { result } = await session(["[exit] crash now", "never sent"]);
+	assert.equal(result.status, "exited");
+	assert.equal(result.turns.length, 1);
+	assert.equal(result.turns[0].status, "exited");
+	assert.match(result.turns[0].error, /pi exited during the turn \(code 3, signal null\)/);
+	assert.equal(result.turns[0].stats, undefined);
+});
+
+test("a pending-looking task record the event stream never mentioned does not hold the turn open", async () => {
+	// Gentle Shell writes task records only when a task finishes, so a record
+	// saying "running" is stale (for example from a crashed host) and is ignored.
+	const seed = async (home) => {
+		const dir = join(home, "gentle-agents", "tasks");
+		await mkdir(dir, { recursive: true });
+		await writeFile(join(dir, "stale-task.json"), JSON.stringify({ task: { id: "stale-task", parentSessionId: "fake-session-0001", status: "running" } }));
+	};
+	const { result } = await session(["plain question"], { deadlineMs: 1500 }, { seed });
+	assert.equal(result.turns[0].status, "settled");
+	assert.deepEqual(result.turns[0].backgroundTasks, []);
+});
+
+test("the quiet window is chosen in one place: explicit quietMs, else backgroundQuietMs with background on, else quietMs", () => {
+	assert.equal(resolveDriverOptions({}).quietMs, DRIVER_DEFAULTS.quietMs);
+	assert.equal(resolveDriverOptions({ background: true }).quietMs, DRIVER_DEFAULTS.backgroundQuietMs);
+	assert.equal(resolveDriverOptions({ background: true, backgroundQuietMs: 30 }).quietMs, 30);
+	assert.equal(resolveDriverOptions({ background: true, quietMs: 7 }).quietMs, 7);
+	assert.equal(resolveDriverOptions({ background: false, backgroundQuietMs: 30 }).quietMs, DRIVER_DEFAULTS.quietMs);
 });

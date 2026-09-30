@@ -69,6 +69,11 @@ async function main(argv) {
 	return manifests.every((manifest) => manifest.status === "completed") ? 0 : 2;
 }
 
+// Leave through process.exit on SIGINT/SIGTERM so exit hooks run: the RPC
+// client uses one to stop the launcher's detached process group, which no
+// longer receives terminal signals itself.
+for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) process.once(signal, () => process.exit(code));
+
 main(process.argv.slice(2)).then(
 	(code) => {
 		process.exitCode = code;

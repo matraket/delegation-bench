@@ -23,13 +23,14 @@ test("builds a fresh isolated home: NaN provider only, agents, and every agent r
 	assert.equal(home.home, dest);
 	assert.equal(home.sessionDir, join(dest, "sessions", "bench"));
 
-	const settings = await json(join(dest, "settings.json"));
-	assert.deepEqual(settings.packages, ["npm:@gtrabanco/pi-nan-provider"]);
-	assert.equal(settings.defaultProvider, "nan");
-	assert.equal(settings.defaultModel, "glm5.3-flash");
-	assert.equal(settings.defaultThinkingLevel, "high");
-	assert.deepEqual(settings.extensions, ["-builtin:codemode"]);
-	assert.equal(settings.theme, "Gentleman-Cute");
+	// Only the keys the design needs; unrelated template keys (theme, TUI state) stay out.
+	assert.deepEqual(await json(join(dest, "settings.json")), {
+		packages: ["npm:@gtrabanco/pi-nan-provider"],
+		extensions: ["-builtin:codemode"],
+		defaultProvider: "nan",
+		defaultModel: "glm5.3-flash",
+		defaultThinkingLevel: "high",
+	});
 
 	assert.ok(existsSync(join(dest, "npm/node_modules/@gtrabanco/pi-nan-provider/src/index.ts")));
 	assert.ok(!existsSync(join(dest, "npm/node_modules/gentle-engram")));

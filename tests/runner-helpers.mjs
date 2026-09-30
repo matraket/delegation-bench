@@ -1,8 +1,10 @@
 // Synthetic Gentle Shell package, donor release and template home for runner
 // tests, so no test depends on the machine's installed release.
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 async function put(path, content) {
 	await mkdir(dirname(path), { recursive: true });
@@ -10,16 +12,9 @@ async function put(path, content) {
 }
 
 // Line map used with the synthetic assets (the real map lives in arms/old-rules.json).
-export const TEST_LINE_MAP = {
-	donorRelease: "synthetic",
-	files: {
-		"assets/orchestrator.md": [
-			{ shipped: "1. **Evidence-budget rule**", donor: "1. **4-file rule**" },
-			{ shipped: "4. **Context backstop**", donor: "4. **Long-session rule**" },
-		],
-		"assets/orchestrator-delegation.md": [{ shipped: "1. **Mapping trigger (Evidence-budget rule):**", donor: "1. **Mapping trigger (4-file rule):**" }],
-	},
-};
+// The CLI tests pass the same file with --old-rules-map.
+export const TEST_LINE_MAP_PATH = fileURLToPath(new URL("./fixtures/old-rules.test.json", import.meta.url));
+export const TEST_LINE_MAP = JSON.parse(readFileSync(TEST_LINE_MAP_PATH, "utf8"));
 
 const SHIPPED_ORCHESTRATOR = [
 	"# Orchestrator",
@@ -67,7 +62,7 @@ export async function makeTemplateHome() {
 	const template = await mkdtemp(join(tmpdir(), "bench-tpl-"));
 	await put(
 		join(template, "settings.json"),
-		JSON.stringify({ packages: ["npm:gentle-engram", "npm:@gtrabanco/pi-nan-provider", "npm:pi-claude-bridge@0.9.0"], theme: "Gentleman-Cute", defaultProvider: "other", defaultModel: "other-model", defaultThinkingLevel: "low" }),
+		JSON.stringify({ lastChangelogVersion: "0.99.1", packages: ["npm:gentle-engram", "npm:@gtrabanco/pi-nan-provider", "npm:pi-claude-bridge@0.9.0"], extensions: ["/private/user-extension.ts"], theme: "Gentleman-Cute", tuiMode: "fullscreen", defaultProvider: "other", defaultModel: "other-model", defaultThinkingLevel: "low" }),
 	);
 	await put(join(template, "npm", "package.json"), JSON.stringify({ name: "pi-extensions", private: true, dependencies: { "@gtrabanco/pi-nan-provider": "^0.10.0", "gentle-engram": "^0.1.16" } }));
 	await put(join(template, "npm", "node_modules", "@gtrabanco", "pi-nan-provider", "package.json"), JSON.stringify({ name: "@gtrabanco/pi-nan-provider", version: "0.10.0" }));

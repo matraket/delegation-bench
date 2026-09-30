@@ -117,13 +117,35 @@ Most valuable axes not covered by the original study: other model families (chil
   - Commit: `73c2420` `feat: add benchmark runner for delegation arms`.
   - Parent spot check: `node --test` 63/63; release `cc36bd8d` files `assets/orchestrator.md`, `assets/orchestrator-delegation.md`, `extensions/child-context.ts` byte-identical to the commit.
   - Native review: assessed high (`high_risk`, executable bit on `run-bench.mjs`) against boundary `8811899`; consent granted; four lenses; approved and acknowledged (lineage `review-85a247d11a45f354`). Reviewed boundary is now `73c2420`. Twelve non-blocking findings, tracked as T3.1.
-- [ ] T3.1 Runner hardening (review follow-ups, not started)
+- [x] T3.1 Runner hardening (review follow-ups)
+  - Route: delegated direct (bounded writer; fixes plus tests span 2+ non-trivial files).
   - `lib/runner/rpc-client.mjs:99-106` (WARNING, R4 and R3): `close()` sends SIGTERM once and awaits exit with no limit; escalate to SIGKILL or bound the wait.
+    - Fixed: the launcher spawns `detached` on POSIX (leader of a new process group that pi joins; the launcher spawns pi without detaching, `bin/gentle-shell.mjs:441`). `close()` is bounded: stdin EOF, wait `graceMs` 10 s; SIGTERM to the group, wait `termGraceMs` 5 s; SIGKILL to the group, wait `killWaitMs` 5 s; then group members that outlived the launcher get SIGTERM/SIGKILL too. Returns `{code, signal, ended: exited|sigterm|sigkill|unresponsive, group: none-left|terminated|killed|survived|not-applicable, waitedMs}` (in the manifest `exit`). A `process` exit hook sends SIGTERM to a live group, and `run-bench.mjs` exits through `process.exit` on SIGINT/SIGTERM so that hook runs (the detached group gets no terminal signal). Subagent children are in pi-owned groups (`lib/agents-runner.ts:464`), so a SIGKILL of pi cannot stop them (documented).
   - `lib/runner/arms.mjs:193-195`, `lib/runner/run.mjs:26` (WARNING, R4 and R3): every invocation, including `--dry-run`, deletes and rebuilds `<workDir>/arms/<name>`, shared across run ids; a concurrent live run loses its package root and old manifests point at rebuilt arms. Scope arms per run id or content hash.
+    - Fixed with content keys: roots are `<workDir>/arms/<arm>-<key>`, key = first 12 hex of SHA-256 over builder version, arm, source real path, source fingerprint (content of the 711 package files outside `node_modules`; path, size, mtime of `node_modules` files; symlink targets; `.cache` skipped) and each patched text. Identical inputs reuse the root (`reused`); changed inputs build a new root; nothing deletes a finished root. Builds go to `.bench/arms/.build-*` and are renamed into place when complete (`bench-arm.json` last); a lost race reuses the winner. Manifest `armInfo.key`. Disk: 44 MB per distinct build, shared across run ids; old builds need manual removal (README).
   - `lib/resolve.mjs:59` (WARNING): duplicate or symlinked agent homes make a single session "ambiguous"; de-duplicate by real path.
+    - Fixed: candidates de-duplicated by `realpath`, first path kept.
   - `lib/runner/driver.mjs:148`, `:212-213` (WARNING): quiet-window default computed in two places that disagree.
+    - Fixed: `resolveDriverOptions` is the only place (explicit `quietMs`, else `backgroundQuietMs` with background on, else `quietMs`).
   - `lib/runner/driver.mjs:45-60` (WARNING): pending-record scan reads task files that, per T3 evidence, are only written on completion.
-  - Suggestions: background turn end relies on a timing guess (`driver.mjs:152-155`); pi-exits-mid-turn path untested (`driver.mjs:150`); template `settings.json` keys leak into bench homes (`home.mjs:66`); duplicated test maps and donor paths (`tests/runner-helpers.mjs:13-22`, `tests/runner-arms.test.mjs:121-122`).
+    - Decision: removed. Evidence (read-only, release `cc36bd8d`): `extensions/gentle-agents.ts:571-575` `persist` is the only writer and is called only from `onFinish` (`:768`), via `lib/agents-history.ts:43` `saveTask` (temp file plus rename). A record can never be pending, so the scan could only be dead or wrong (a stale `running` record held the turn until the deadline). Pending tasks now come from the event stream only; records still confirm completion. Documented in the driver header and README.
+  - Suggestions:
+    - pi-exits-mid-turn: tested with a new fake-pi `[exit]` scenario (code 3).
+    - Template `settings.json` leak: bench settings are built from scratch (`packages`, `extensions: ["-builtin:codemode"]`, `defaultProvider`, `defaultModel`, `defaultThinkingLevel`); theme, TUI state, `lastChangelogVersion` (read only by pi interactive mode) and user extensions stay out.
+    - `TEST_LINE_MAP` loads `tests/fixtures/old-rules.test.json`; the real-release test takes `DEFAULTS.source` / `DEFAULTS.donor`.
+    - Background turn-end timing guess: not changed; documented as a limitation in README "Turn completion".
+  - Test-first evidence:
+    - RED (`node --test` on the touched files, new tests first): resolve symlinked home (ambiguous error); arms reuse and new-root tests; CLI dry-run root layout, second-invocation isolation and manifest root; stale running record (turn hit the 1,500 ms deadline); home settings deepEqual (theme and extensions leaked); `close()` orderly/survivor tests (no `ended`/`group`), and the stubborn-group test timed out after 10,000 ms, leaving the fake pi and two SIGTERM-ignoring grandchildren alive (killed by hand).
+    - pi-exits-mid-turn passed on unchanged code (coverage gap). Quiet-window refactor and test-map/`DEFAULTS` dedupe are refactors: tests stayed green; a unit test for `resolveDriverOptions` was added and passes.
+    - GREEN: `node --test` 72 tests, 72 pass, 0 fail (about 3.5 s); rpc-client tests 3/3 on three consecutive runs; no leftover fake processes.
+    - Scratch check: a runner receiving SIGTERM with a child that ignores stdin EOF exits 143 and the child is gone (exit hook).
+  - Verification:
+    - `node --test`: 72 pass, 0 fail.
+    - `env -u NAN_API_KEY node run-bench.mjs --dry-run --arms all --questions tests/fixtures/questions.example.json --run-id t31-a`: exit 0, 5.6 s, six roots `built` (`old-rules-889e6164593c`, `inline-1a35719b8c9b`, `shipped-ac9f65e282c8`, `shipped-nonlean-afd61f53a0aa`, `delegate-f6ee7cc8850c`, `delegate-nonlean-8f930bbffea4`).
+    - Same with `--run-id t31-b`: exit 0, 1.0 s, the same six roots `reused`. A snapshot of every root (root inode and mtime, 26,610-26,611 entries, hash over path, inode, size and mtime of every entry) is identical before and after; no `.build-*` left.
+    - `old-rules` `assets/orchestrator.md` still byte-identical to the `289cee5b` one; no file under the releases directory changed; `shipped-nonlean/extensions` has no `child-context.ts`.
+    - `node analyze-sessions.mjs 01a0f398-30dd-77f4-904c-c5509db04291 --json`: 10 turns, input 42,171, cacheRead 357,696, cacheWrite 0, output 1,056, first 38,336, final 41,922 (cost api 83,220.6, nan 400,923).
+  - Size: about 580 insertions and 130 deletions (tests and fake pi about 270), above the 400-line heuristic because the five warnings were fixed together as one review follow-up; not split artificially.
 - [x] T3.2 Runtime target: resolved 2026-10-01. "Pi" means the Gentle Shell launcher (as in the reference test session, home `~/.gentle-shell/agent`), which the T3 runner already drives. No change needed.
 
 - [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.

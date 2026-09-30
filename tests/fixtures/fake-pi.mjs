@@ -10,8 +10,14 @@
 //   [u2028]       answer text containing U+2028 and U+2029
 //   [background]  report a running background task, settle, then finish the
 //                 task record on disk and re-trigger one more run
+//   [exit]        start a run, then exit with code 3 in the middle of it
+// Environment switches for shutdown tests:
+//   FAKE_PI_STUBBORN=1         ignore stdin EOF and SIGTERM (only SIGKILL ends it)
+//   FAKE_PI_GRANDCHILD=<file>  spawn a child in the same process group that
+//                              ignores SIGTERM, and write its pid to <file>
 // A marker file named by FAKE_PI_MARKER is written on start, so tests can
 // prove whether a process was spawned at all.
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -23,6 +29,13 @@ const valueAfter = (flag) => {
 const home = valueAfter("--home");
 const sessionDir = valueAfter("--session-dir");
 if (process.env.FAKE_PI_MARKER) writeFileSync(process.env.FAKE_PI_MARKER, JSON.stringify({ argv, keySet: Boolean(process.env.NAN_API_KEY) }));
+const stubborn = process.env.FAKE_PI_STUBBORN === "1";
+if (stubborn) process.on("SIGTERM", () => {});
+if (process.env.FAKE_PI_GRANDCHILD) {
+	// The grandchild writes its pid only after its SIGTERM handler is installed.
+	const script = "process.on('SIGTERM', () => {}); require('node:fs').writeFileSync(process.env.FAKE_PI_GRANDCHILD, String(process.pid)); setInterval(() => {}, 1000);";
+	spawn(process.execPath, ["-e", script], { stdio: "ignore" });
+}
 
 const sessionId = "fake-session-0001";
 mkdirSync(sessionDir, { recursive: true });
@@ -117,6 +130,11 @@ function handlePrompt(command) {
 		startBackground();
 		return;
 	}
+	if (message.includes("[exit]")) {
+		emit({ type: "agent_start" });
+		setTimeout(() => process.exit(3), 20);
+		return;
+	}
 	const text = message.includes("[u2028]") ? "line separator paragraph" : `answer to: ${message}`;
 	run(text);
 }
@@ -168,4 +186,8 @@ process.stdin.on("data", (chunk) => {
 		if (line.trim()) handle(JSON.parse(line));
 	}
 });
-process.stdin.on("end", () => process.exit(0));
+process.stdin.on("end", () => {
+	if (!stubborn) process.exit(0);
+});
+// Keep a stubborn process alive after stdin closes.
+if (stubborn) setInterval(() => {}, 1000);

@@ -31,8 +31,9 @@ A session id is resolved by searching, in every agent home,
 `gentle-agents/sessions/<timestamp>_<id>.jsonl`. Each positional argument is
 treated as a parent; its children are discovered automatically.
 
-The search is deterministic (directory entries are sorted by name). If an id
-matches more than one file (for example the same session under two cwd slugs
+The search is deterministic (directory entries are sorted by name). Candidates
+are de-duplicated by real path, so a repeated or symlinked agent home does not
+count one file twice. If an id matches more than one distinct file (for example the same session under two cwd slugs
 or in both agent homes), the analyzer fails and lists every candidate instead
 of picking one; pass the intended file path instead.
 
@@ -190,11 +191,27 @@ test-only example.
 
 ### Arms
 
-Each arm is a copy of the Gentle Shell release under `.bench/arms/<arm>`,
+Each arm is a copy of the Gentle Shell release under `.bench/arms/<arm>-<key>`,
 selected with the launcher's `--package-root` (the orchestrator rules are read
 from the package and appended to the primary session only). Package files are
 real copies; `node_modules` is hardlinked to the release (about 44 MB of new
 disk per arm instead of 260 MB), except `node_modules/.cache`, which starts empty.
+
+Arm roots are immutable. `<key>` is the first 12 hex characters of a SHA-256
+over the builder version, the arm, the source real path, a source fingerprint
+(content of every package file outside `node_modules`; path, size and mtime of
+every `node_modules` file; symlink targets) and every patched text. An
+invocation with identical inputs reuses the existing root (the plan prints
+`reused`); any change builds a new root next to it. No invocation, dry run
+included, deletes or rewrites a finished root, so a live run and every earlier
+manifest keep their package root. A build is assembled in
+`.bench/arms/.build-*` and renamed into place only when complete
+(`bench-arm.json` is written last); a failed build removes its own temporary
+directory. Disk cost is one 44 MB copy per distinct arm build, shared by every
+run id; old builds are never collected automatically, so remove
+`.bench/arms/<arm>-<key>` by hand once no kept manifest names it as
+`packageRoot`. Reused roots keep jiti's `node_modules/.cache` from earlier
+runs (a compile cache: it can change start-up time, not the prompt).
 
 | Arm | Rules | Children | Tools |
 |-----|-------|----------|-------|
@@ -207,7 +224,8 @@ disk per arm instead of 260 MB), except `node_modules/.cache`, which starts empt
 
 The builder fails if an anchor or the trigger block is missing, and if the
 rendered `assets/orchestrator.md` exceeds the 8 KiB orchestrator budget. Every
-arm root holds `bench-arm.json` (patches with line numbers, removed files, bytes).
+arm root holds `bench-arm.json` (key, source fingerprint, patches with line
+numbers, removed files, bytes); the run manifest records `armInfo.key`.
 
 ### Homes
 
@@ -215,7 +233,10 @@ Per run: `.bench/runs/<run-id>/<arm>/<model>/rep-<n>/home`, built from the
 template home (default `~/.gentle-shell/agent`). Only `settings.json`,
 `npm/package.json`, the kept npm packages (default `npm:@gtrabanco/pi-nan-provider`)
 and `agents/*.md` are read; credentials are never read or copied.
-`settings.json` keeps only the kept packages and sets the run model;
+`settings.json` is written from scratch with only `packages` (the kept ones),
+`extensions: ["-builtin:codemode"]`, `defaultProvider`, `defaultModel` and
+`defaultThinkingLevel`; no other template key (theme, TUI state, user
+extensions) is carried over;
 `subagents.json` routes every agent to the run model with `history_max_tasks`
 raised. `--context managed-blocks` seeds `AGENTS.md` from
 `arms/fixtures/managed-blocks-AGENTS.md` (placeholder bodies, real markers).
@@ -230,13 +251,39 @@ The launch environment adds `GENTLE_SHELL_HOME`, `GENTLE_SHELL_CONFIG`,
 ### Turn completion
 
 The driver frames RPC records on LF only (not `readline`). A turn ends when
-`agent_settled` has fired, no subagent task seen in the event stream (or
-recorded for this parent under `gentle-agents/tasks/`) is still queued or
-running, and no new run starts during a quiet window (1 s, or 5 s with
-background subagents, whose completions re-trigger the parent). A `prompt`
-answered with disposition `handled` does not wait. Dialog UI requests are
-answered with `cancelled: true` and recorded. A turn past its deadline is
-aborted and ends the run.
+`agent_settled` has fired, no subagent task seen in the event stream is still
+queued or running, and no new run starts during a quiet window (1 s, or 5 s
+with background subagents, whose completions re-trigger the parent). A
+`prompt` answered with disposition `handled` does not wait. Dialog UI
+requests are answered with `cancelled: true` and recorded. A turn past its
+deadline is aborted and ends the run; pi exiting mid-turn ends the run with
+status `exited`.
+
+Pending tasks come from `details.gentleAgents` in the event stream only.
+Gentle Shell writes `gentle-agents/tasks/<id>.json` once, when a task finishes
+(`persist(task)` is called only from the runner's `onFinish` in
+`extensions/gentle-agents.ts`), so a record can confirm that a task seen
+pending has finished, but a record never announces a pending task; a stale
+record that says `running` is ignored.
+
+Limitation: the end of a background turn is a timing guess. No RPC event says
+that no more follow-up runs will start, so a background completion that
+re-triggers the parent later than the quiet window after the last settle or
+task finish is attributed to the next turn. Raise `quietMs` /
+`backgroundQuietMs` (driver options) if a pilot shows this.
+
+### Shutdown
+
+On Linux and macOS the launcher starts detached, so it leads a new process
+group that pi joins. Closing a run is bounded: close stdin and wait 10 s, then
+SIGTERM the group and wait 5 s, then SIGKILL the group and wait 5 s; any group
+member that outlived the launcher gets the same SIGTERM/SIGKILL steps. The
+manifest's `exit` records `ended` (`exited`, `sigterm`, `sigkill`,
+`unresponsive`), `group` (`none-left`, `terminated`, `killed`,
+`survived`) and `waitedMs`. Subagent children run in their own process groups
+owned by pi, so a SIGKILL of pi cannot stop them; they lose their stdin pipe
+with it. If the runner receives SIGINT or SIGTERM it exits through an exit hook
+that sends SIGTERM to the launcher group.
 
 ### Output per run
 
