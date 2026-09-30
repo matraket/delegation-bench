@@ -124,7 +124,7 @@ Most valuable axes not covered by the original study: other model families (chil
   - `lib/runner/driver.mjs:148`, `:212-213` (WARNING): quiet-window default computed in two places that disagree.
   - `lib/runner/driver.mjs:45-60` (WARNING): pending-record scan reads task files that, per T3 evidence, are only written on completion.
   - Suggestions: background turn end relies on a timing guess (`driver.mjs:152-155`); pi-exits-mid-turn path untested (`driver.mjs:150`); template `settings.json` keys leak into bench homes (`home.mjs:66`); duplicated test maps and donor paths (`tests/runner-helpers.mjs:13-22`, `tests/runner-arms.test.mjs:121-122`).
-- [ ] T3.2 Runtime target: the user runs the benchmark "in Pi"; confirm whether that means the gentle-shell launcher (as in the reference test session, home `~/.gentle-shell/agent`) or the plain `pi` command (home `~/.pi/agent`, gentle-pi loaded as a local path package). If plain `pi`, launch `pi` with `PI_CODING_AGENT_DIR` and a per-arm `settings.json` package path instead of `--package-root`.
+- [x] T3.2 Runtime target: resolved 2026-10-01. "Pi" means the Gentle Shell launcher (as in the reference test session, home `~/.gentle-shell/agent`), which the T3 runner already drives. No change needed.
 
 - [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.
 - [ ] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
