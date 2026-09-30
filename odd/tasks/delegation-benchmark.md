@@ -146,6 +146,9 @@ Most valuable axes not covered by the original study: other model families (chil
     - `old-rules` `assets/orchestrator.md` still byte-identical to the `289cee5b` one; no file under the releases directory changed; `shipped-nonlean/extensions` has no `child-context.ts`.
     - `node analyze-sessions.mjs 01a0f398-30dd-77f4-904c-c5509db04291 --json`: 10 turns, input 42,171, cacheRead 357,696, cacheWrite 0, output 1,056, first 38,336, final 41,922 (cost api 83,220.6, nan 400,923).
   - Size: about 580 insertions and 130 deletions (tests and fake pi about 270), above the 400-line heuristic because the five warnings were fixed together as one review follow-up; not split artificially.
+  - Commit: `0377255` `fix: harden benchmark runner shutdown and arm isolation`.
+  - Parent spot check: `node --test` 72/72; no lingering fake-pi processes.
+  - Native review: assessed medium (`slice_budget_reached`) against boundary `73c2420`; consent granted; reliability lens; approved and acknowledged (lineage `review-6ebd160b68cd6d44`). Reviewed boundary is now `0377255`. Non-blocking findings for later: group liveness probe counts zombie members when PID 1 does not reap (`lib/runner/rpc-client.mjs:184-209`) and the matching test depends on a reaper (`tests/runner-rpc-client.test.mjs:69-76`); a reused arm returns the stored root path instead of the computed one (`lib/runner/arms.mjs:257-258`); the exit hook is dropped when the launcher exits, before `close()` reaps survivors (`lib/runner/rpc-client.mjs:62-63`).
 - [x] T3.2 Runtime target: resolved 2026-10-01. "Pi" means the Gentle Shell launcher (as in the reference test session, home `~/.gentle-shell/agent`), which the T3 runner already drives. No change needed.
 
 - [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.
