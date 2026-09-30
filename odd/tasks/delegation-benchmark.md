@@ -15,7 +15,21 @@ Most valuable axes not covered by the original study: other model families (chil
 ## Scope
 
 - T1: session cost analyzer over pi session JSONL (parent plus delegated children), with configurable weight profiles.
-- Later tasks (not planned yet): benchmark runner, question set, result report. They depend on whether Alan shares his harness.
+- T2: analyzer hardening from review findings.
+- T3-T7: independent replication of the #5139 method (Alan has not shared his harness): runner, question set, pilot, full runs, report. If Alan shares his harness later, T4 questions adapt to it.
+
+### Design (from a read-only exploration of Gentle Shell `cc36bd8d`, 2026-10-01)
+
+- Drive Gentle Shell through `--mode rpc` (print mode refuses background subagents); a turn ends on `agent_settled` with no queued or running child task.
+- One fresh isolated home per arm and repetition: `--home`, `GENTLE_SHELL_CONFIG`, `GENTLE_PI_CONFIG_HOME`, `GENTLE_SHELL_NO_AUTO_SETUP=1`, `DO_NOT_TRACK=1`; template with `settings.json` plus the `@gtrabanco/pi-nan-provider` npm install (children only load `settings.json` packages), `agents/`, and `subagents.json` routing every agent to the arm model with `history_max_tasks` raised.
+- Arms select a package copy through the launcher's `--package-root`, because `assets/orchestrator.md` is read from the package and appended to the primary session only (no override env or flag):
+  - `old-rules`: shipped package with the pre-#1590 file-count rule lines (from release `289cee5b`) patched into its orchestrator assets.
+  - `inline`: shipped package with a forced-inline rule, plus `--exclude-tools` for the subagent tools.
+  - `shipped`: shipped package unchanged (evidence budget, lean children).
+  - `shipped-nonlean`: shipped package without `extensions/child-context.ts` (keeps `child-safety.ts`).
+  - `delegate` and `delegate-nonlean`: forced-delegation rule text, with and without lean children.
+- Context fixture per run: `none` (this machine has no managed `AGENTS.md`, so lean children change little) or `managed-blocks` (seeded gentle-ai managed blocks to replicate the study's ~37k).
+- Cost is measured by the T1 analyzer over the parent and child JSONL, with `api` and `nan` weights.
 
 ## Constraints
 
@@ -25,7 +39,7 @@ Most valuable axes not covered by the original study: other model families (chil
 
 ## Delivery strategy
 
-`ask-on-risk` (default). Forecast for T1: ~400 authored changed lines.
+`ask-on-risk` (default). Forecast for T1: ~400 authored changed lines. The repository has no remote, so pull-request slicing does not apply until one exists; work-unit commits stay on `feat/session-cost-analyzer`.
 
 ## Tasks
 
@@ -80,6 +94,15 @@ Most valuable axes not covered by the original study: other model families (chil
   - Parent spot check: `node --test` 31/31; `--profile ""` exits 1 with the empty-selection error.
   - Native review: assessed medium against the reviewed boundary `8811899`, `review_due` false (`under_budget`); pending in the slice until a later commit reaches the budget.
 
+- [ ] T3 Benchmark runner
+  - Route: delegated direct (writer trigger: runner modules, arm builder and tests are 2+ non-trivial files).
+  - Acceptance: builds isolated homes and per-arm package copies under a gitignored work directory; drives a multi-turn RPC session per arm and repetition from a question file; waits for settle plus child completion with a per-turn deadline; auto-answers or logs UI requests; records session files and per-turn stats; runs the T1 analyzer at the end; dry-run mode that builds everything and prints the plan without calling a model. Also closes the T2 follow-up (`Object.hasOwn` in `selectProfiles`).
+  - Checks: `node --test` with a fake RPC pi; dry run over all arms. No live model call without explicit user approval.
+- [ ] T4 Question set with verified answer keys (small, medium, large; follow-ups), on a pinned repository commit.
+- [ ] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
+- [ ] T6 Full runs (arms x models x repetitions, long sessions beyond 16 turns).
+- [ ] T7 Report and post results on #5139.
+
 ## Next step
 
-Decide the benchmark runner and question set (depends on whether Alan shares his harness). Gentle AI #5139 was closed on 2026-09-30 by PR #5147 (evidence budget in the Gentle AI assets); the benchmark now measures the shipped rules.
+T3 by one delegated writer. Gentle AI #5139 was closed on 2026-09-30 by PR #5147 (evidence budget in the Gentle AI assets); the benchmark measures the shipped rules against the alternatives.
