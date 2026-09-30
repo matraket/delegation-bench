@@ -21,14 +21,19 @@ node analyze-sessions.mjs <id> --weights '{"name":"flat","input":1,"cacheRead":1
 | Option | Meaning |
 |--------|---------|
 | `--json` | Machine-readable report (see [JSON shape](#json-shape)). |
-| `--profile a,b` | Weight profiles to report. Default: `api,nan`, plus the custom profile when `--weights` is given. |
-| `--weights <json>` | Custom profile: `{"name"?, "input", "cacheRead", "cacheWrite", "output"}`. All four weights are required; `name` defaults to `custom`. |
+| `--profile a,b` | Weight profiles to report. Default: `api,nan`, plus the custom profile when `--weights` is given. An empty selection (`--profile ""` or only commas) is an error. |
+| `--weights <json>` | Custom profile: `{"name"?, "input", "cacheRead", "cacheWrite", "output"}`. All four weights are required; `name` defaults to `custom` and may not be a built-in profile name (`api`, `nan`). |
 | `--agent-home <dir>` | Agent home to search (repeatable). Default: `~/.gentle-shell/agent`, then `~/.pi/agent`. |
 
 A session id is resolved by searching, in every agent home,
 `sessions/<cwd-slug>/<timestamp>_<id>.jsonl` and
 `gentle-agents/sessions/<timestamp>_<id>.jsonl`. Each positional argument is
 treated as a parent; its children are discovered automatically.
+
+The search is deterministic (directory entries are sorted by name). If an id
+matches more than one file (for example the same session under two cwd slugs
+or in both agent homes), the analyzer fails and lists every candidate instead
+of picking one; pass the intended file path instead.
 
 Run the tests with `npm test` (`node --test`).
 

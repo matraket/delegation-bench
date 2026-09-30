@@ -32,3 +32,16 @@ test("profile selection rejects unknown names and incomplete custom weights", ()
 	assert.throws(() => selectProfiles(undefined, '{"input":1}'), /cacheRead/);
 	assert.throws(() => selectProfiles(undefined, "not json"), /--weights/);
 });
+
+test("a custom profile may not reuse a built-in profile name", () => {
+	for (const reserved of Object.keys(BUILTIN_PROFILES)) {
+		const json = JSON.stringify({ name: reserved, input: 1, cacheRead: 1, cacheWrite: 1, output: 1 });
+		assert.throws(() => selectProfiles(undefined, json), new RegExp(`--weights name "${reserved}" is reserved for the built-in profile`));
+		assert.throws(() => selectProfiles([reserved], json), /is reserved for the built-in profile/);
+	}
+});
+
+test("an explicit but empty profile selection is rejected", () => {
+	assert.throws(() => selectProfiles([]), /--profile selects no weight profiles/);
+	assert.throws(() => selectProfiles([], '{"input":1,"cacheRead":1,"cacheWrite":1,"output":1}'), /--profile selects no weight profiles/);
+});

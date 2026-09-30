@@ -43,6 +43,25 @@ test("fails with a non-zero exit and a message for an unknown session", async ()
 	});
 });
 
+test("fails with a non-zero exit when --weights reuses a built-in profile name", async () => {
+	const weights = '{"name":"api","input":1,"cacheRead":1,"cacheWrite":1,"output":1}';
+	await assert.rejects(run(process.execPath, [CLI, "solo-0002", "--weights", weights, ...HOMES]), (error) => {
+		assert.equal(error.code, 1);
+		assert.match(error.stderr, /--weights name "api" is reserved for the built-in profile/);
+		return true;
+	});
+});
+
+test("fails with a non-zero exit when --profile selects nothing", async () => {
+	for (const selection of ["", " , ,"]) {
+		await assert.rejects(run(process.execPath, [CLI, "solo-0002", "--profile", selection, ...HOMES]), (error) => {
+			assert.equal(error.code, 1);
+			assert.match(error.stderr, /--profile selects no weight profiles/);
+			return true;
+		});
+	}
+});
+
 test("never modifies the analyzed session files", async () => {
 	const files = [PARENT_PATH, CHILD1_PATH, CHILD2_PATH];
 	const before = await Promise.all(files.map(async (file) => [await readFile(file, "utf8"), (await stat(file)).mtimeMs]));

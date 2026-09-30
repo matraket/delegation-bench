@@ -55,11 +55,27 @@ Most valuable axes not covered by the original study: other model families (chil
   - Commit: `8811899` `feat: add session cost analyzer` on `feat/session-cost-analyzer`.
   - Parent spot check: `node --test` 25/25; reference session re-run matches, cost api 83,220.6 and nan 400,923 recomputed by hand.
   - Native review: assessed medium, `review_due` (`slice_budget_reached`); consent granted; one reliability lens; approved and acknowledged (lineage `review-2bf45063b13545e6`). Four non-blocking findings, tracked as T2.
-- [ ] T2 Analyzer hardening (review follow-ups, not started)
+- [x] T2 Analyzer hardening (review follow-ups)
+  - Route: delegated direct (bounded writer; fixes plus tests span 2+ non-trivial files).
   - `lib/weights.mjs:49-54` (WARNING): a custom `--weights` profile named `api` or `nan` silently replaces the built-in one and is still labelled as built-in. Reject or report the collision.
+    - Fixed: `parseCustom` rejects a built-in name (`--weights name "api" is reserved for the built-in profile; choose another name`), exit 1. No silent rename.
   - `analyze-sessions.mjs:36`: `--profile ""` yields no profiles and no cost columns without an error.
+    - Fixed in `selectProfiles`: an explicit empty list throws `--profile selects no weight profiles; ...`, exit 1 (covers `""` and only commas).
   - `lib/resolve.mjs:29`: session search is in readdir order; sort it so id resolution is deterministic.
+    - Fixed: directory entries are sorted by name. Ambiguity rule: an id matching more than one file (any cwd slug, either session dir, any agent home) is an error listing every candidate in deterministic order (homes as given, `sessionDirs` order, then path name); the user passes a path instead. New export `findSessionFilesById`. Documented in README.
   - `lib/children.mjs:94`: the recorded-`sessionPath` branch has no test (fixtures only exercise the basename fallback).
+    - Covered: `tests/children.test.mjs` writes a task record whose `sessionPath` exists outside the agent home, plus a same-named decoy under `gentle-agents/sessions`, and asserts `pathResolvedBy: "recorded"` with the recorded path.
+  - Test-first evidence:
+    - RED: `node --test` 26 tests, 21 pass, 5 fail (2 weights unit tests, 2 CLI tests, `tests/resolve.test.mjs` failing to import `findSessionFilesById`). Behavioral RED for the ambiguity test with a temporary export stub: `Missing expected rejection` (old code silently picked one file). Stub removed.
+    - Finding 4 is a coverage gap, so its test passed on the unchanged code; a mutation check (recorded branch disabled) made it fail with the decoy path as actual, then the code was restored.
+    - GREEN: `node --test` 31 tests, 31 pass, 0 fail.
+  - Verification:
+    - `node --test`: 31 pass, 0 fail.
+    - `node analyze-sessions.mjs 01a0f398-30dd-77f4-904c-c5509db04291 --json`: 10 turns, input 42,171, cacheRead 357,696, cacheWrite 0, output 1,056, first prefix 38,336, final context 41,922 (unchanged; cost api 83,220.6, nan 400,923).
+    - `... --weights '{"name":"api",...}'`: exit 1, `analyze-sessions: --weights name "api" is reserved for the built-in profile; choose another name`.
+    - `... --profile ""`: exit 1, `analyze-sessions: --profile selects no weight profiles; name at least one (for example api,nan)`.
+    - `node analyze-sessions.mjs 01a0bad5-cbd5-744c-ab32-bb1f41fd0901 --json`: still 9 children, 0 unresolved, no ambiguity on real data.
+  - Follow-up (not fixed, out of T2 scope): `selectProfiles` checks names with `in`, so a prototype key such as `--profile toString` is accepted with no weights and reports a `null` cost (observed); `Object.hasOwn` would close it.
 
 ## Next step
 
