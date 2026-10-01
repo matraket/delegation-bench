@@ -192,6 +192,18 @@ Most valuable axes not covered by the original study: other model families (chil
     - The 28 auto-handled UI requests were `setWidget` (15) and `setStatus` (13), not dialogs.
     - First prefix 17,915 tokens versus 38,336 in the user's own Gentle Shell home (reference session): the bench home loads only the NaN provider package, while the user's home also loads gentle-engram, pi-web-access, pi-btw, pi-mcp-adapter and pi-claude-bridge. Their tools roughly double the parent prefix; worth reporting.
 - [ ] T6 Full runs (arms x models x repetitions, long sessions beyond 16 turns).
+  - In progress (user-authorized 2026-10-01): `long-01` (glm5.3-flash, `questions/generated/long.json`, 4 arms x 3 repetitions, shuffled, logs `.bench/long-01-logs/`) and `pilot-02` (the T5 short pilot repeated on deepseek-v4-flash, then qwen3.8-flash; same shuffle seed; logs `.bench/pilot-02-logs/`). glm5.3 (premium) is not in the user's plan; models available to the key: deepseek-v4-flash, glm5.3-flash, mimo-v2.6-flash, minimax-h3, qwen3.6, qwen3.8-flash, gemma4.
+  - Report script: `.bench/analysis/pilot-report.mjs <run-prefix> <model-dir>` (cost per arm plus evidence-budget adherence; to be moved into the repo with T7).
+  - `pilot-02` deepseek-v4-flash (11:58-13:45 UTC): 48/48 completed. NaN usage delta prompt 22,950,932, completion 507,851, 786 requests; analyzer prompt 22,950,932 and output 507,851 (exact).
+
+    | Arm | Sessions that delegated | Children | NaN total | NaN median | Median vs inline | Final parent context (median) | Wall (median) | Turns over budget |
+    |---|---|---|---|---|---|---|---|---|
+    | old-rules | 3 | 4 | 6.99M | 410k | 1.72x | 38.2k | 118 s | 10/24 |
+    | inline | 0 | 0 | 4.41M | 312k | 1.00x | 37.1k | 83 s | 11/24 |
+    | shipped | 1 | 1 | 6.28M | 438k | 1.20x | 45.8k | 101 s | 12/24 |
+    | delegate | 12 | 21 | 5.78M | 441k | 1.60x | 26.8k | 165 s | 0/24 |
+
+  - Reading: deepseek-v4-flash also mostly ignores the evidence budget (`shipped` over budget in 12/24 turns, 1 delegation); it delegated more under the old file-count rules (3 sessions). Forced delegation costs more than on glm5.3-flash (1.60x vs 1.03x median) while still shrinking the parent (26.8k vs 37.1k). Single repetition: treat differences among the non-delegating arms as variance.
 - [ ] T7 Report and post results on #5139.
 
 ## Next step
