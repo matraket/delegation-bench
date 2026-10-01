@@ -213,6 +213,16 @@ Most valuable axes not covered by the original study: other model families (chil
     | delegate | 3/3 | 61 | 4.13M (3.92-6.75M) | 1.88M | 79.6k | 49 min | 1/72 |
 
   - Reading (long sessions): under NaN weights (cache reads count 1:1) forced delegation costs about half of any inline arm, with no overlap between ranges across 3 repetitions, and halves the parent context (80k vs 152-158k). Under API weights (cache read 0.1) the same sessions rank the other way: delegation costs about 25-45% more, because carried context is cheap there. The pricing model decides the conclusion. `shipped` still never delegated (0 in 72 turns, 13 over budget). Delegation took about 1.6-1.8x the wall time. No Spanish-reply drift detected in any arm (crude word-count detector; bench homes use the default persona, so this does not replicate #5139's persona setting).
+  - `pilot-02` qwen3.8-flash (13:45-18:48 UTC): 48/48 completed, 6 zero-usage turns. NaN usage delta prompt 64,637,039, completion 982,938, 1,720 requests; analyzer prompt 64,436,504 (-0.31%), output 986,557 (+0.37%), the gap is attributed to the 6 aborted turns (not verified). Quota used about 65M, about 3x the 20M forecast (qwen3.8-flash reads much more per question).
+
+    | Arm | Sessions that delegated | Children | NaN total | NaN median | Median vs inline | Final parent context (median) | Wall (median) | Turns over budget |
+    |---|---|---|---|---|---|---|---|---|
+    | old-rules | 6 | 8 | 23.53M | 1.45M | 1.28x | 49.9k | 364 s | 17/24 |
+    | inline | 0 | 0 | 11.34M | 799k | 1.00x | 54.2k | 267 s | 19/24 |
+    | shipped | 1 | 2 | 8.85M | 660k | 0.64x | 48.7k | 238 s | 14/24 |
+    | delegate | 12 | 37 | 21.70M | 1.73M | 1.85x | 35.8k | 540 s | 4/24 |
+
+  - Cross-model reading (short pilot, 1 repetition): `shipped` delegated in 0/12 (glm5.3-flash), 1/12 (deepseek-v4-flash), 1/12 (qwen3.8-flash) sessions while exceeding its budget in 9-14 of 24 turns; `old-rules` delegated more on deepseek (3/12) and qwen (6/12). Forced delegation versus inline on short questions: 1.03x, 1.60x, 1.85x.
   - Reading: deepseek-v4-flash also mostly ignores the evidence budget (`shipped` over budget in 12/24 turns, 1 delegation); it delegated more under the old file-count rules (3 sessions). Forced delegation costs more than on glm5.3-flash (1.60x vs 1.03x median) while still shrinking the parent (26.8k vs 37.1k). Single repetition: treat differences among the non-delegating arms as variance.
 - [ ] T7 Report and post results on #5139.
 
