@@ -203,6 +203,16 @@ Most valuable axes not covered by the original study: other model families (chil
     | shipped | 1 | 1 | 6.28M | 438k | 1.20x | 45.8k | 101 s | 12/24 |
     | delegate | 12 | 21 | 5.78M | 441k | 1.60x | 26.8k | 165 s | 0/24 |
 
+  - `long-01` glm5.3-flash (10:42-17:25 UTC): 12/12 sessions completed, 288/288 turns settled. NaN usage delta prompt 95,815,510, completion 574,639; analyzer identical (exact). Quota used about 96M, above the 40-70M forecast.
+
+    | Arm | Reps that delegated | Children | NaN median (min-max) | API-weight median | Final parent context (median) | Wall (median) | Turns over budget |
+    |---|---|---|---|---|---|---|---|
+    | old-rules | 0/3 | 0 | 8.82M (7.88-10.75M) | 1.53M | 156.6k | 27 min | 19/72 |
+    | inline | 0/3 | 0 | 9.31M (9.17-10.61M) | 1.51M | 157.8k | 32 min | 16/72 |
+    | shipped | 0/3 | 0 | 8.35M (7.27-9.44M) | 1.30M | 152.1k | 28 min | 13/72 |
+    | delegate | 3/3 | 61 | 4.13M (3.92-6.75M) | 1.88M | 79.6k | 49 min | 1/72 |
+
+  - Reading (long sessions): under NaN weights (cache reads count 1:1) forced delegation costs about half of any inline arm, with no overlap between ranges across 3 repetitions, and halves the parent context (80k vs 152-158k). Under API weights (cache read 0.1) the same sessions rank the other way: delegation costs about 25-45% more, because carried context is cheap there. The pricing model decides the conclusion. `shipped` still never delegated (0 in 72 turns, 13 over budget). Delegation took about 1.6-1.8x the wall time. No Spanish-reply drift detected in any arm (crude word-count detector; bench homes use the default persona, so this does not replicate #5139's persona setting).
   - Reading: deepseek-v4-flash also mostly ignores the evidence budget (`shipped` over budget in 12/24 turns, 1 delegation); it delegated more under the old file-count rules (3 sessions). Forced delegation costs more than on glm5.3-flash (1.60x vs 1.03x median) while still shrinking the parent (26.8k vs 37.1k). Single repetition: treat differences among the non-delegating arms as variance.
 - [ ] T7 Report and post results on #5139.
 
