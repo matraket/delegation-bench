@@ -171,7 +171,20 @@ Most valuable axes not covered by the original study: other model families (chil
   - Parent spot check: `node --test` 85/85; `s2-gauge` facts f1-f2 checked against `lib/shell-gauge.ts:16-26` in the worktree (8 cells, ▰/▱, thresholds 80/95).
   - Native review: assessed high (heuristic flagged process-spawning text inside the question JSON) against boundary `0377255`; consent granted; four lenses; approved and acknowledged (lineage `review-ea5f2a62829debfc`). Reviewed boundary is now `14fabd0`. Non-blocking findings for later: evidence audit counts one extra line for files ending in a newline (`tests/question-files.test.mjs:198`); the stale-file sweep deletes any `.json` under `<out>/short` before writing (`scripts/build-question-files.mjs:176-177`); generated `<id>-followup` turn ids are not checked for collisions (`:112-114`); generated `cwd` would use backslashes on Windows (`:145`); duplicated size order and evidence regex in tests; README does not say the evidence checks skip without the worktree.
   - Housekeeping 2026-10-01: removed the T3 old-layout arm copies (`.bench/arms/<name>` without key) and `.bench/runs/dryrun-verify` with the user's approval; kept `.bench/arms/shipped-ac9f65e282c8`.
-- [ ] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
+- [x] T5 Pilot run (one model, short sessions) after a quota forecast approved by the user.
+  - Pilot `pilot-01` (2026-10-01 07:26-10:30 UTC, user-authorized, forecast 15-25M): 12 short questions x 4 arms (`old-rules`, `inline`, `shipped`, `delegate`), context `none`, `nan/glm5.3-flash`, 1 repetition, 48 sessions shuffled with seed 5139. 48/48 completed, 0 errors. Logs and `summary.json` archived in `.bench/pilot-01-logs/`.
+  - Measurement check: NaN usage delta prompt 19,234,669, completion 243,946, 732 requests; analyzer sum prompt 19,219,284 (0.08% lower), output 243,946 (exact).
+  - Per arm (12 sessions each; nan weights = raw tokens):
+
+    | Arm | Sessions that delegated | Children | NaN total | NaN median | Median vs inline (per question) | Final parent context (median) | Wall time (median) |
+    |---|---|---|---|---|---|---|---|
+    | old-rules | 0 | 0 | 4.84M | 286k | 0.76x | 36.2k | 154 s |
+    | inline | 0 | 0 | 6.06M | 297k | 1.00x | 33.2k | 144 s |
+    | shipped | 0 | 0 | 3.87M | 234k | 0.85x | 31.4k | 169 s |
+    | delegate | 12 | 21 | 4.69M | 330k | 1.03x | 23.9k | 327 s |
+
+  - Reading: `shipped` (evidence budget) never delegated on these short questions, so `old-rules`, `inline` and `shipped` all ran inline and their cost differences reflect run-to-run variance and reading style, not delegation (single questions vary up to 8x between arms, e.g. `s1-nan-provider` 120k to 942k). Forced delegation cost about the same as inline at the median (1.03x; +19% under api weights), kept the parent about 28% smaller, and took about 2.3x the wall time. Child prefixes on NaN are small (about 11-18k), which plausibly explains the much smaller delegation penalty than #5139 reported on claude-bridge (+46-65%).
+  - Implications for T6: repetitions are needed (variance dominates single runs); long sessions are where carry, and therefore the rule, should matter; check whether `shipped` stays inline because evidence stays under budget or because the model ignores the rule.
   - Smoke run `smoke-01` (2026-10-01, user-authorized: NaN API, one smoke session, key from `~/.config/delegation-bench/nan.key` via `NAN_API_KEY`): arm `shipped`, `nan/glm5.3-flash`, question `s1-nan-provider` (2 turns). Completed 2/2 turns in 101.2 s, 0 errors, 0 delegations.
     - NaN `GET /v1/usage` delta for the day: prompt 125,763, completion 2,102, 6 requests. Analyzer over the session: 6 turns, input 41,731 + cacheRead 84,032 = 125,763, output 2,102, cacheWrite 0: exact match.
     - The session system prompt contains `Package assets root: .bench/arms/shipped-ac9f65e282c8/assets` and the skill locations under the arm root, so the arm package was loaded (proves the `--package-root` path that `--version` could not).
