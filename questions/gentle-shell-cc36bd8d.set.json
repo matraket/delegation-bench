@@ -1,0 +1,421 @@
+{
+	"id": "gentle-shell-cc36bd8d",
+	"description": "Twelve read-only questions about Gentle Shell (4 small, 4 medium, 4 large), each with one detail follow-up. Every key fact cites path:line evidence in the pinned commit. See questions/README.md.",
+	"repository": {
+		"name": "gentle-shell",
+		"commit": "cc36bd8d10a4ccb16ad24a84860c4b9ee1a1e8ff",
+		"worktree": "../../gentle-shell-worktrees/bench-cc36bd8d"
+	},
+	"questions": [
+		{
+			"id": "s1-nan-provider",
+			"size": "small",
+			"prompt": "Gentle Shell ships its own built-in provider for NaN Builders. How does that provider decide which models it offers, and how does it obtain the API key it sends? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "The provider id is \"nan\" and its base URL is https://api.nan.builders/v1.", "evidence": ["lib/nan-provider.ts:5-6", "lib/nan-provider.ts:121-124"] },
+					{ "id": "f2", "text": "It starts from a hard-coded offline catalog of seven chat models: glm5.3, deepseek-v4-flash, glm5.3-flash, qwen3.8-flash, mimo-v2.6-flash, gemma4 and qwen3.6.", "evidence": ["lib/nan-provider.ts:23-30", "lib/nan-provider.ts:40-42"] },
+					{ "id": "f3", "text": "Every model uses the openai-completions API, has reasoning enabled and zero cost, and maxTokens 8192 unless set (qwen3.8-flash has 131000).", "evidence": ["lib/nan-provider.ts:16-17", "lib/nan-provider.ts:27", "lib/nan-provider.ts:31-38"] },
+					{ "id": "f4", "text": "On refresh (only when network is allowed) it GETs <base>/models with the key as a Bearer token, a 3-second timeout and redirects refused.", "evidence": ["lib/nan-provider.ts:7", "lib/nan-provider.ts:73-84", "lib/nan-provider.ts:176-185"] },
+					{ "id": "f5", "text": "The live list only filters the built-in catalog: ids the provider does not already know are dropped, so it never adds unknown models.", "evidence": ["lib/nan-provider.ts:48-53", "lib/nan-provider.ts:190-192"] },
+					{ "id": "f6", "text": "An empty data array is authoritative (no models), while an unusable or failed response leaves the current catalog unchanged.", "evidence": ["lib/nan-provider.ts:59", "lib/nan-provider.ts:85-89", "lib/nan-provider.ts:186-188"] },
+					{ "id": "f7", "text": "The API key comes from the stored credential (entered through the login prompt) first, otherwise from the NAN_API_KEY environment variable.", "evidence": ["lib/nan-provider.ts:127-136", "lib/nan-provider.ts:137-143"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Models returned by the live /models endpoint are added even when they are not in the built-in list.", "evidence": ["lib/nan-provider.ts:48-53"] },
+					{ "id": "x2", "text": "The key is read only from NAN_API_KEY (or only from stored credentials).", "evidence": ["lib/nan-provider.ts:139-140"] }
+				]
+			},
+			"followup": {
+				"prompt": "Suppose the live /models call returns only the ids glm5.3-flash and kimi-k3. Which NaN models does pi list afterwards, with which context window, input types and maximum output tokens? And what would the list be if the call returned HTTP 500 instead? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "Only glm5.3-flash is listed; kimi-k3 is dropped because it is not in the built-in catalog.", "evidence": ["lib/nan-provider.ts:48-53", "lib/nan-provider.ts:190-192"] },
+						{ "id": "f2", "text": "glm5.3-flash keeps its built-in metadata: 1,000,000-token context window, text and image input, maxTokens 8192.", "evidence": ["lib/nan-provider.ts:26", "lib/nan-provider.ts:37"] },
+						{ "id": "f3", "text": "On HTTP 500 the fetch returns undefined and the catalog is not replaced, so the previous catalog (the offline seven models on a first refresh) stays.", "evidence": ["lib/nan-provider.ts:85", "lib/nan-provider.ts:159", "lib/nan-provider.ts:186-188"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "kimi-k3 appears in the model list.", "evidence": ["lib/nan-provider.ts:50-51"] },
+						{ "id": "x2", "text": "An HTTP 500 empties the model list.", "evidence": ["lib/nan-provider.ts:85"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "s2-gauge",
+			"size": "small",
+			"prompt": "Gentle Shell draws small percentage gauges in its bar and panels. How is such a gauge rendered: how many cells by default, which characters, how is the number of filled cells computed, and how is its color chosen? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "The default gauge has 8 cells (callers may pass another cell count).", "evidence": ["lib/shell-gauge.ts:16", "lib/shell-gauge.ts:23"] },
+					{ "id": "f2", "text": "Filled cells use the character ▰ and empty cells use ▱.", "evidence": ["lib/shell-gauge.ts:17-18", "lib/shell-gauge.ts:26"] },
+					{ "id": "f3", "text": "The percent is clamped to 0-100 (null counts as 0) and filled = Math.round(percent / 100 * cells).", "evidence": ["lib/shell-gauge.ts:24-25"] },
+					{ "id": "f4", "text": "The tone is dim for null, error at 95% or more, warning at 80% or more, otherwise accent.", "evidence": ["lib/shell-gauge.ts:20-21", "lib/shell-gauge.ts:29-34"] },
+					{ "id": "f5", "text": "Only the filled part gets the tone color; the empty cells are painted with the border color role.", "evidence": ["lib/shell-gauge.ts:19", "lib/shell-gauge.ts:36-40"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "The fill uses Math.floor or Math.ceil instead of rounding.", "evidence": ["lib/shell-gauge.ts:25"] }
+				]
+			},
+			"followup": {
+				"prompt": "With the default cell count, exactly what does the gauge show for 6%, for 94% and for null, and which color role does each one's filled part get? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "6%: round(0.48) = 0 filled cells, so eight empty ▱; the tone is accent (but nothing is filled).", "evidence": ["lib/shell-gauge.ts:25-26", "lib/shell-gauge.ts:33"] },
+						{ "id": "f2", "text": "94%: round(7.52) = 8, so all eight cells are ▰, in the warning tone (94 is below the 95 error threshold).", "evidence": ["lib/shell-gauge.ts:20-21", "lib/shell-gauge.ts:25", "lib/shell-gauge.ts:31-32"] },
+						{ "id": "f3", "text": "null: treated as 0%, eight empty ▱ cells, dim tone.", "evidence": ["lib/shell-gauge.ts:24", "lib/shell-gauge.ts:30"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "94% is shown in the error tone.", "evidence": ["lib/shell-gauge.ts:31"] },
+						{ "id": "x2", "text": "6% shows one filled cell.", "evidence": ["lib/shell-gauge.ts:25"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "s3-vim-counts",
+			"size": "small",
+			"prompt": "Gentle Shell's prompt editor has an optional Vim mode. In its NORMAL-mode motion engine, how are numeric counts parsed and bounded, which keys switch to insert mode and where does each put the cursor, and how do gg and G behave with and without a count? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "Digits 1-9 start a count; 0 extends a pending count, but with no pending count 0 moves to column 0.", "evidence": ["lib/vim-normal-engine.ts:45-52", "lib/vim-normal-engine.ts:91"] },
+					{ "id": "f2", "text": "The count defaults to 1 and is capped at 10000.", "evidence": ["lib/vim-normal-engine.ts:53"] },
+					{ "id": "f3", "text": "i inserts at the cursor, I at the first non-whitespace column, a one position to the right, and A at the end of the line.", "evidence": ["lib/vim-normal-engine.ts:93", "lib/vim-normal-engine.ts:95-97"] },
+					{ "id": "f4", "text": "o opens a new line below (inserting a newline at the end of the line) and O a line above (newline at column 0).", "evidence": ["lib/vim-normal-engine.ts:98-99"] },
+					{ "id": "f5", "text": "gg goes to the first line, or with a count N to line N (clamped to the last line), at column 0.", "evidence": ["lib/vim-normal-engine.ts:56-66"] },
+					{ "id": "f6", "text": "G goes to the last line, or with a count N to line N (clamped), at column 0.", "evidence": ["lib/vim-normal-engine.ts:94"] },
+					{ "id": "f7", "text": "Keys the engine does not know return handled: false.", "evidence": ["lib/vim-normal-engine.ts:126"] }
+				]
+			},
+			"followup": {
+				"prompt": "In a 3-line buffer with the cursor on the first line, what do the key sequences 5G, 1 0 j, and a bare 0 each do in that NORMAL-mode engine? Also, how does it split text into words for w, e and b? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "5G clamps to the last line (the third line, index 2) at column 0.", "evidence": ["lib/vim-normal-engine.ts:94"] },
+						{ "id": "f2", "text": "1 then 0 builds the count 10, so j moves down 10 lines clamped to the last line, keeping the preferred column.", "evidence": ["lib/vim-normal-engine.ts:46", "lib/vim-normal-engine.ts:49-51", "lib/vim-normal-engine.ts:85-88"] },
+						{ "id": "f3", "text": "A bare 0 (no pending count) moves to column 0 of the current line.", "evidence": ["lib/vim-normal-engine.ts:49", "lib/vim-normal-engine.ts:91"] },
+						{ "id": "f4", "text": "Word motions use three character classes: whitespace, word characters (Unicode letters, numbers and underscore) and everything else, over grapheme clusters.", "evidence": ["lib/vim-normal-engine.ts:4-7", "lib/vim-normal-engine.ts:100-102"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "s4-visual-profiles",
+			"size": "small",
+			"prompt": "Gentle Shell lets you save named visual profiles. Where are they stored, what does one profile contain, and what limits and validation rules apply when the file is read and when a profile is saved? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "They live in visual-profiles.json in the Gentle config home (GENTLE_PI_CONFIG_HOME, default ~/.pi/gentle-ai).", "evidence": ["lib/visual-profiles.ts:104", "lib/visual-profiles.ts:157", "lib/agent-home.ts:14-16"] },
+					{ "id": "f2", "text": "The file must be exactly {schema: \"gentle-pi.visual-profiles/v1\", profiles: [...]}.", "evidence": ["lib/visual-profiles.ts:9", "lib/visual-profiles.ts:76-83"] },
+					{ "id": "f3", "text": "A profile has exactly name, themeName, animationPolicy, banner {showRose, showTextLogo, color} and visual; the banner color must be pink, cyan, yellow or green.", "evidence": ["lib/visual-profiles.ts:47-67"] },
+					{ "id": "f4", "text": "Names match ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$ (1-64 characters); themeName is 1-128 characters with no slash, control characters or surrounding whitespace.", "evidence": ["lib/visual-profiles.ts:12", "lib/visual-profiles.ts:54-59"] },
+					{ "id": "f5", "text": "Limits: at most 256,000 bytes and at most 64 profiles.", "evidence": ["lib/visual-profiles.ts:10-11", "lib/visual-profiles.ts:71", "lib/visual-profiles.ts:81", "lib/visual-profiles.ts:159-161", "lib/visual-profiles.ts:201-203"] },
+					{ "id": "f6", "text": "Any invalid profile or a duplicate name makes the whole file malformed.", "evidence": ["lib/visual-profiles.ts:85-93"] },
+					{ "id": "f7", "text": "Symlinks and other non-regular files are refused (lstat check plus O_NOFOLLOW where available).", "evidence": ["lib/visual-profiles.ts:14-18", "lib/visual-profiles.ts:107-123"] },
+					{ "id": "f8", "text": "Saving an existing name requires replace: true; writes go to a temp file renamed into place, with mode 0600.", "evidence": ["lib/visual-profiles.ts:163-170", "lib/visual-profiles.ts:198-200"] }
+				]
+			},
+			"followup": {
+				"prompt": "If one of ten stored visual profiles has its banner color set to \"red\", what does reading the profiles return, and can a new profile still be saved? What happens on an attempt to save a 65th profile into a valid file? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "The whole file is rejected: reading returns no profiles with malformed: true (the nine valid ones are not returned).", "evidence": ["lib/visual-profiles.ts:65", "lib/visual-profiles.ts:91-93", "lib/visual-profiles.ts:136"] },
+						{ "id": "f2", "text": "Saving (or deleting) is refused with an error \"Cannot edit unreadable or malformed visual profiles: <path>\".", "evidence": ["lib/visual-profiles.ts:147-153", "lib/visual-profiles.ts:196"] },
+						{ "id": "f3", "text": "A 65th new profile throws RangeError \"Too many visual profiles.\"", "evidence": ["lib/visual-profiles.ts:201-203"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "The invalid profile is skipped and the other nine are returned.", "evidence": ["lib/visual-profiles.ts:91-93"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "m1-resume-hint",
+			"size": "medium",
+			"prompt": "When an interactive Gentle Shell session is quit, Gentle Shell prints its own command for resuming the session. Why is pi's own resume hint not enough, and how does the information travel from the pi process to the code that prints the line? Describe what the printed command contains. Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "pi prints \"pi --session <id>\", but under gentle-shell pi resolves sessions from PI_CODING_AGENT_DIR (the gentle-shell home), so bare pi would look in ~/.pi/agent instead.", "evidence": ["lib/gentle-shell-resume-hint.ts:1-11", "lib/gentle-shell-launcher.ts:946"] },
+					{ "id": "f2", "text": "For an interactive launch (no pi subcommand) the launcher creates a private temp dir <tmpdir>/gentle-shell-resume-XXXXXX with handoff.json and passes its path in GENTLE_SHELL_RESUME_HANDOFF.", "evidence": ["bin/gentle-shell.mjs:1387-1390", "bin/gentle-shell.mjs:1439-1448", "lib/gentle-shell-resume-hint.ts:15", "lib/gentle-shell-resume-hint.ts:25-27"] },
+					{ "id": "f3", "text": "The resume-hint extension claims the path once (deleting the env var so subagents and tool shells do not inherit it) and accepts only paths shaped like the launcher's handoff.", "evidence": ["extensions/resume-hint.ts:20-28", "lib/gentle-shell-resume-hint.ts:31-38"] },
+					{ "id": "f4", "text": "On session_shutdown with reason quit in TUI mode it writes the handoff JSON create-only (flag wx).", "evidence": ["extensions/resume-hint.ts:39-58"] },
+					{ "id": "f5", "text": "The handoff holds the session id; sessionDir only when the session is outside pi's default per-cwd directory; an absolute sessionFile when the session cwd differs from the launch cwd; nothing if the session file was never written.", "evidence": ["lib/gentle-shell-resume-hint.ts:40-50", "lib/gentle-shell-resume-hint.ts:73-79"] },
+					{ "id": "f6", "text": "After pi exits, the launcher reads and validates the handoff and prints \"To resume in gentle-shell: gentle-shell ...\" below pi's own line, then removes the temp dir.", "evidence": ["bin/gentle-shell.mjs:1413-1431", "lib/gentle-shell-resume-hint.ts:17", "lib/gentle-shell-resume-hint.ts:87-105", "bin/gentle-shell.mjs:1461-1467"] },
+					{ "id": "f7", "text": "The command repeats the home selector (--link, or --home <dir>; nothing for the default isolated home), then --session-dir if needed and --session <id or file>.", "evidence": ["lib/gentle-shell-launcher.ts:225-229", "lib/gentle-shell-resume-hint.ts:132-153"] },
+					{ "id": "f8", "text": "It prints only to a TTY, never after SIGHUP, and prints nothing when an argument cannot be quoted safely (POSIX single quotes; double quotes on Windows with unsafe characters refused).", "evidence": ["lib/gentle-shell-resume-hint.ts:116-127", "lib/gentle-shell-resume-hint.ts:169-176"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Gentle Shell rewrites or replaces pi's own resume line.", "evidence": ["lib/gentle-shell-resume-hint.ts:8-11"] }
+				]
+			},
+			"followup": {
+				"prompt": "Suppose gentle-shell was started with --home /tmp/h in project A, the user then used /resume to open a session that belongs to project B, and quit normally. What form does the printed command take? What would be printed if the terminal had been closed (SIGHUP) instead? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "Because the session cwd (B) differs from the launch cwd (A), the handoff carries the absolute session file and no --session-dir.", "evidence": ["lib/gentle-shell-resume-hint.ts:76", "lib/gentle-shell-resume-hint.ts:140-141"] },
+						{ "id": "f2", "text": "The command is gentle-shell --home /tmp/h --session /absolute/path/to/session.jsonl (pi opens a --session value with a path separator as a file).", "evidence": ["lib/gentle-shell-launcher.ts:227", "lib/gentle-shell-resume-hint.ts:138-142"] },
+						{ "id": "f3", "text": "After SIGHUP the launcher marks the terminal as hung up and prints no Gentle Shell hint.", "evidence": ["bin/gentle-shell.mjs:1400-1406", "lib/gentle-shell-resume-hint.ts:171"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "The command uses the bare session id, which would make pi offer a fork into project A.", "evidence": ["lib/gentle-shell-resume-hint.ts:45-49"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "m2-esc-handling",
+			"size": "medium",
+			"prompt": "In the Gentle Shell prompt editor, what does pressing Esc do while the agent is working, and what does it do while the agent is idle and the editor holds a non-empty draft? Which setting changes the working-state behavior, where is it stored and how is it resolved, and what happens to queued messages when a turn is aborted with Esc? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "While working, with double-esc-cancel off (the default), a single Esc aborts the turn.", "evidence": ["extensions/gentle-shell.ts:863-871", "lib/double-esc-cancel-policy.ts:111"] },
+					{ "id": "f2", "text": "With double-esc-cancel on, the first Esc only arms a 1000 ms window and a second Esc inside it aborts (double pi's 500 ms idle double-Esc window).", "evidence": ["extensions/gentle-shell.ts:872-882", "lib/double-esc-cancel-policy.ts:42-46"] },
+					{ "id": "f3", "text": "While idle with a non-empty draft that does not start with !, the first Esc arms a 500 ms window; a second Esc clears the draft (adding it to the editor history) only if the text is unchanged.", "evidence": ["extensions/gentle-shell.ts:334", "extensions/gentle-shell.ts:891-913"] },
+					{ "id": "f4", "text": "The policy is resolved from <config home>/double-esc-cancel.json first, then GENTLE_PI_DOUBLE_ESC_CANCEL (on/off), then default off; there is no per-project layer.", "evidence": ["lib/double-esc-cancel-policy.ts:5-13", "lib/double-esc-cancel-policy.ts:71-115"] },
+					{ "id": "f5", "text": "The file must be exactly {\"schema\":\"gentle-pi.double-esc-cancel/v1\",\"policy\":\"on\"|\"off\"}; a present but malformed file fails closed to off instead of falling back to the env var.", "evidence": ["lib/double-esc-cancel-policy.ts:39-40", "lib/double-esc-cancel-policy.ts:57-69", "lib/double-esc-cancel-policy.ts:80-83", "lib/double-esc-cancel-policy.ts:104-106"] },
+					{ "id": "f6", "text": "/gentle:double-esc-cancel accepts status, enable or disable; with no argument it toggles.", "evidence": ["extensions/gentle-shell.ts:1104", "extensions/gentle-shell.ts:2278-2296"] },
+					{ "id": "f7", "text": "On an Esc abort, text queued behind the running turn is not dumped into the editor: the draft is restored alone and the queued text is sent as the next turn once the aborted run settles.", "evidence": ["extensions/gentle-shell.ts:960-988", "extensions/gentle-shell.ts:2338-2353"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Double-Esc cancel is on by default.", "evidence": ["lib/double-esc-cancel-policy.ts:111"] },
+					{ "id": "x2", "text": "A project-level file can override the double-Esc preference.", "evidence": ["lib/double-esc-cancel-policy.ts:8-13"] }
+				]
+			},
+			"followup": {
+				"prompt": "If GENTLE_PI_DOUBLE_ESC_CANCEL=on is set but the global policy file contains {\"schema\":\"gentle-pi.double-esc-cancel/v1\",\"policy\":\"on\",\"note\":\"x\"}, what is the effective policy and which source is reported? And if the user edits that file by hand mid-session, when does the Esc gate notice the change? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "The extra key fails the strict decode (exactly two keys), so the policy is off, attributed to the global file and marked malformed.", "evidence": ["lib/double-esc-cancel-policy.ts:67", "lib/double-esc-cancel-policy.ts:95-106"] },
+						{ "id": "f2", "text": "The env var is ignored because an existing file decides, even when malformed.", "evidence": ["lib/double-esc-cancel-policy.ts:80-83", "lib/double-esc-cancel-policy.ts:95"] },
+						{ "id": "f3", "text": "The policy is resolved once at startup and cached; a hand edit is picked up only when /gentle:double-esc-cancel runs (it re-reads the file first) or the extension loads again.", "evidence": ["extensions/gentle-shell.ts:1653-1659", "extensions/gentle-shell.ts:1684-1687", "extensions/gentle-shell.ts:1834", "extensions/gentle-shell.ts:2287-2288"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "The policy is on because the environment variable says on.", "evidence": ["lib/double-esc-cancel-policy.ts:104-106"] },
+						{ "id": "x2", "text": "The file is re-read on every key press.", "evidence": ["extensions/gentle-shell.ts:1653-1658"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "m3-command-palette",
+			"size": "medium",
+			"prompt": "How does Gentle Shell's command palette work? Explain how it is opened, which commands it lists and how that list is built, how the list is filtered as the user types, and what happens when an entry is chosen. Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "It opens with /gentle:commands or the alt+k shortcut; GENTLE_PI_COMMANDS_KEY overrides the key and an empty value or off disables it (ctrl+k is reserved by pi's editor).", "evidence": ["extensions/gentle-shell.ts:1149", "extensions/gentle-shell.ts:1896-1906", "lib/command-palette.ts:345-357"] },
+					{ "id": "f2", "text": "It shows a curated catalog, not every registered command, in the groups Configuration, Session, Diagnostics and Skills.", "evidence": ["lib/command-palette-catalog.ts:3-7", "lib/command-palette-catalog.ts:19-61"] },
+					{ "id": "f3", "text": "Only catalog commands that are actually registered appear, with the registration's live description; empty groups are dropped and catalog order is kept.", "evidence": ["lib/command-palette-catalog.ts:63-83"] },
+					{ "id": "f4", "text": "Shortcut hints are attached for gentle:changes and gentle:agents.", "evidence": ["extensions/gentle-shell.ts:1293-1296"] },
+					{ "id": "f5", "text": "Without a UI it does nothing; with no matching registered commands it notifies \"No Gentle commands are registered.\"", "evidence": ["extensions/gentle-shell.ts:1292-1300"] },
+					{ "id": "f6", "text": "Filtering is case-insensitive on the trimmed query and ranks items: 0 label prefix, 1 label substring, 2 label subsequence, 3 command name substring, 4 description substring; non-matching items are hidden.", "evidence": ["lib/command-palette.ts:44-60", "lib/command-palette.ts:62-74"] },
+					{ "id": "f7", "text": "Groups are never reordered relative to each other; ranking is a stable sort within each group and empty groups disappear.", "evidence": ["lib/command-palette.ts:66-69", "lib/command-palette.ts:75-86"] },
+					{ "id": "f8", "text": "Choosing an entry sends /<command> as a user message, as if the user had typed the slash command.", "evidence": ["extensions/gentle-shell.ts:1289-1290", "extensions/gentle-shell.ts:1305"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "The palette lists every registered extension command.", "evidence": ["lib/command-palette-catalog.ts:3-5"] },
+					{ "id": "x2", "text": "The palette has an SDD group (a stale code comment says so, but the catalog has none).", "evidence": ["extensions/gentle-shell.ts:1285-1286", "lib/command-palette-catalog.ts:19-61"] }
+				]
+			},
+			"followup": {
+				"prompt": "Assume every Gentle extension is loaded. If the user types yolo into the palette's search box, which entries remain, in what order, and which entry is selected first? Explain using the ranking rules. Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "Two entries remain: Visual customization (gentle:customize) and the YOLO session permission entry (gentle:yolo).", "evidence": ["lib/command-palette-catalog.ts:29", "lib/command-palette-catalog.ts:43", "extensions/gentle-shell.ts:1907-1908"] },
+						{ "id": "f2", "text": "Visual customization matches only through its description (\"... session-only YOLO permission ...\"), rank 4.", "evidence": ["extensions/gentle-shell.ts:1908", "lib/command-palette.ts:57-58"] },
+						{ "id": "f3", "text": "The YOLO entry matches its label as a substring (the label starts with an emoji, so not as a prefix), rank 1.", "evidence": ["lib/command-palette-catalog.ts:43", "lib/command-palette.ts:54-55"] },
+						{ "id": "f4", "text": "Because groups keep catalog order, the Configuration group (Visual customization) comes before the Session group (YOLO), so Visual customization is first and selected.", "evidence": ["lib/command-palette.ts:66-69", "lib/command-palette.ts:236-238"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "The YOLO entry is listed first because it has the better rank.", "evidence": ["lib/command-palette.ts:67-68"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "m4-subscription-usage",
+			"size": "medium",
+			"prompt": "Gentle Shell can show subscription usage for connected providers. Which providers are supported, how does it obtain the usage data for each of them, when does it refresh, and how can another extension add usage support for a provider Gentle Shell does not know? Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "Built-in support covers openai-codex, anthropic and nan.", "evidence": ["lib/shell-usage.ts:81-83", "lib/shell-usage.ts:120"] },
+					{ "id": "f2", "text": "Codex: parsed from x-codex-* response headers, and fetched from https://chatgpt.com/backend-api/wham/usage with the OAuth token and the account id taken from it.", "evidence": ["lib/shell-usage.ts:90", "lib/shell-usage.ts:297-311", "extensions/gentle-shell.ts:1380-1395"] },
+					{ "id": "f3", "text": "Anthropic: only from the anthropic-ratelimit-unified-5h/7d utilization headers (a 0..1 fraction) on responses; there is no usage endpoint.", "evidence": ["lib/shell-usage.ts:84-89", "lib/shell-usage.ts:313-326", "extensions/gentle-shell.ts:1504"] },
+					{ "id": "f4", "text": "NaN: fetched from https://cloud-api.nan.builders/api/usage/quota with the API key as a Bearer token, redirects refused and no-store.", "evidence": ["lib/shell-usage.ts:91-93", "extensions/gentle-shell.ts:1397-1415"] },
+					{ "id": "f5", "text": "Response headers are parsed on every after_provider_response event.", "evidence": ["extensions/gentle-shell.ts:1597-1606", "lib/shell-usage.ts:328-330"] },
+					{ "id": "f6", "text": "Fetches run per provider and concurrently, at most once every 5 minutes unless forced; session start, opening the panel and r force a refresh, agent_end does an unforced one; each fetch is bounded by a timeout (default 10 s).", "evidence": ["extensions/gentle-shell.ts:1378", "extensions/gentle-shell.ts:1503-1506", "extensions/gentle-shell.ts:1223-1224", "extensions/gentle-shell.ts:1621-1629", "extensions/gentle-shell.ts:1825", "extensions/gentle-shell.ts:2366-2369"] },
+					{ "id": "f7", "text": "The providers in scope are the session's current provider plus those of the subagent routes in the active profile or repository pin.", "evidence": ["extensions/gentle-shell.ts:1463-1485"] },
+					{ "id": "f8", "text": "Another extension emits gentle-pi:usage-source/v1 on pi.events with {schema \"gentle-pi.usage-source/v1\", provider, pendingNote?, fetch(apiKey, fetchFn, now)}; it is validated, replaces any earlier source for that provider, and forces one refresh when that provider is in scope.", "evidence": ["lib/shell-usage.ts:138-155", "extensions/gentle-shell.ts:1587-1596"] },
+					{ "id": "f9", "text": "The panel opens with /gentle:usage or alt+u (GENTLE_PI_SHELL_USAGE_KEY).", "evidence": ["extensions/gentle-shell.ts:1205-1209", "extensions/gentle-shell.ts:1325-1326", "extensions/gentle-shell.ts:1634-1644"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Anthropic usage is fetched from a usage endpoint.", "evidence": ["lib/shell-usage.ts:313-314"] }
+				]
+			},
+			"followup": {
+				"prompt": "For NaN, how is the usage percentage of a model computed, including its rolling window? What happens to the whole snapshot if one metered model is missing tokensUsed? And what does the panel say for a provider outside the supported set? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "Period usage = tokensUsed / allowance * 100, where the allowance is fullCap, falling back to cap; models with neither are skipped.", "evidence": ["lib/shell-usage.ts:357-363", "lib/shell-usage.ts:368-377", "lib/shell-usage.ts:388-394"] },
+						{ "id": "f2", "text": "Rolling window = windowTokensUsed / (fullWindowTokens, else windowTokens, else 400,000,000) * 100, over windowHours (default 4).", "evidence": ["lib/shell-usage.ts:100-101", "lib/shell-usage.ts:349-355"] },
+						{ "id": "f3", "text": "A metered model without readable tokensUsed makes the whole read return no limits; the fetch then yields nothing, the provider is marked failed and the last valid snapshot survives.", "evidence": ["lib/shell-usage.ts:389-396", "extensions/gentle-shell.ts:1410-1411", "extensions/gentle-shell.ts:1558-1561"] },
+						{ "id": "f4", "text": "A model's limit is reached when tokensUsed >= allowance.", "evidence": ["lib/shell-usage.ts:401"] },
+						{ "id": "f5", "text": "An unsupported provider with no registered source shows \"no subscription usage for this provider\".", "evidence": ["lib/shell-usage.ts:127", "lib/shell-usage.ts:196-198"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "Models with readable data are kept while only the broken model is dropped.", "evidence": ["lib/shell-usage.ts:396"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "l1-launcher-startup",
+			"size": "large",
+			"prompt": "Trace what the gentle-shell launcher does from the moment it is invoked until pi is running: how it chooses the agent home, how it finds the pi runtime and checks its version, what it does to a new or Gentle-owned home before launching, and how it makes pi load the Gentle Shell package (environment variables and arguments). Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "Home precedence: --link, --isolated or --home <dir> flags, then the \"home\" field of ~/.gentle-shell/config.json, then the default isolated home.", "evidence": ["lib/gentle-shell-launcher.ts:201-215", "lib/gentle-shell-launcher.ts:231-233", "bin/gentle-shell.mjs:1194-1196"] },
+					{ "id": "f2", "text": "The isolated home is GENTLE_SHELL_HOME or ~/.gentle-shell/agent; link mode reuses PI_CODING_AGENT_DIR or ~/.pi/agent; config.json values other than \"link\"/\"isolated\" are treated as a path.", "evidence": ["lib/gentle-shell-launcher.ts:191-199", "lib/gentle-shell-launcher.ts:238-257"] },
+					{ "id": "f3", "text": "pi runtime order: GENTLE_SHELL_PI, then the bundled @earendil-works/pi-coding-agent CLI run with node, then pi on PATH; otherwise it fails with guidance.", "evidence": ["lib/gentle-shell-launcher.ts:358-378", "bin/gentle-shell.mjs:1198-1204"] },
+					{ "id": "f4", "text": "It runs pi --version (15 s timeout) and refuses a pi older than 0.99.1.", "evidence": ["lib/gentle-shell-launcher.ts:382", "lib/gentle-shell-launcher.ts:395-409", "bin/gentle-shell.mjs:1206-1215"] },
+					{ "id": "f5", "text": "A missing isolated or --home directory is created and seeded (TUI mode setting, ownership marker) with a notice; --link never bootstraps.", "evidence": ["bin/gentle-shell.mjs:1236-1243"] },
+					{ "id": "f6", "text": "For isolated or --home homes (not pi subcommands) it auto-provisions like gentle-shell setup before pi starts, and disables pi's builtin codemode in Gentle-owned homes; failures only warn.", "evidence": ["bin/gentle-shell.mjs:1250-1292"] },
+					{ "id": "f7", "text": "It reads the home's settings.json for a gentle-pi declaration; with none and no take-over it passes -e <package root>; with an accepted declaration it injects nothing.", "evidence": ["bin/gentle-shell.mjs:1330-1332", "lib/gentle-shell-launcher.ts:601-616", "lib/gentle-shell-launcher.ts:904-909", "lib/gentle-shell-launcher.ts:937-939"] },
+					{ "id": "f8", "text": "pi subcommands (install, remove, uninstall, update, list, config, auth) get no injected arguments so pi sees them as argv[0].", "evidence": ["lib/gentle-shell-launcher.ts:12", "lib/gentle-shell-launcher.ts:878-886", "lib/gentle-shell-launcher.ts:913-914"] },
+					{ "id": "f9", "text": "pi is spawned with PI_CODING_AGENT_DIR and GENTLE_PI_AGENT_HOME set to the home (plus the resume handoff variable for interactive sessions), stdio inherited and signals forwarded.", "evidence": ["lib/gentle-shell-launcher.ts:943-947", "bin/gentle-shell.mjs:1389-1395", "bin/gentle-shell.mjs:1403-1408"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "By default gentle-shell reuses the user's ~/.pi/agent home.", "evidence": ["lib/gentle-shell-launcher.ts:214"] }
+				]
+			},
+			"followup": {
+				"prompt": "When exactly does the launcher take over gentle-pi instead of deferring to a declared package, what role does --package-root play in each home mode, and what does a take-over add to pi's arguments? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "An explicit --package-root forces a take-over only in --link mode; in other modes a home that declares gentle-pi keeps its package and the launcher warns that --package-root is ignored.", "evidence": ["bin/gentle-shell.mjs:1320-1323", "bin/gentle-shell.mjs:1337-1341", "bin/gentle-shell.mjs:1344-1349", "lib/gentle-shell-launcher.ts:633-634"] },
+						{ "id": "f2", "text": "Without a forced take-over: no declaration or an npm:gentle-pi declaration means no take-over; a path declaration takes over only when its realpath differs from the launcher's package root.", "evidence": ["lib/gentle-shell-launcher.ts:635-638", "bin/gentle-shell.mjs:1342-1343"] },
+						{ "id": "f3", "text": "A missing --package-root directory is a launcher error (exit 2).", "evidence": ["bin/gentle-shell.mjs:1302-1304"] },
+						{ "id": "f4", "text": "A take-over adds --no-extensions, then -e for every other settings package (git-sourced ones and gentle-pi entries skipped, with warnings for git or filters), then -e for loose extension files from <home>/extensions and <cwd>/.pi/extensions.", "evidence": ["lib/gentle-shell-launcher.ts:915-927", "lib/gentle-shell-launcher.ts:709-750", "bin/gentle-shell.mjs:1366"] },
+						{ "id": "f5", "text": "The launcher's own package root is injected last (deduplicated), so it wins conflicts, and a \"taking over gentle-pi\" notice is printed with settings left unchanged.", "evidence": ["lib/gentle-shell-launcher.ts:928-935", "bin/gentle-shell.mjs:1367-1370"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "--package-root forces a take-over in every home mode.", "evidence": ["bin/gentle-shell.mjs:1348"] },
+						{ "id": "x2", "text": "A matching npm:gentle-pi declaration is taken over without --package-root.", "evidence": ["lib/gentle-shell-launcher.ts:636"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "l2-prompt-history",
+			"size": "large",
+			"prompt": "Explain how Gentle Shell's prompt-history feature works end to end: when capture is enabled, where and in what layout prompts are stored on disk, what a stored entry looks like, how a project's history gets seeded, and how the store is kept from growing into too many files. Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "Capture is opt-in: GENTLE_PI_HISTORY_CAPTURE set to 1/true/on forces it on and 0/false/off forces it off (trimmed, case-insensitive); otherwise the saved preference decides, default off.", "evidence": ["lib/history-capture-policy.ts:6-9", "lib/history-capture-policy.ts:31-37", "lib/history-capture-policy.ts:74-80"] },
+					{ "id": "f2", "text": "The preference lives in <config home>/history-capture.json as {\"schema\":\"gentle-pi.history-capture/v1\",\"policy\":\"on\"|\"off\"}; a missing file means off and a malformed or unreadable one fails closed to off.", "evidence": ["lib/history-capture-policy.ts:12", "lib/history-capture-policy.ts:39-57"] },
+					{ "id": "f3", "text": "The gate is checked per prompt; with capture off nothing is written and the selector only warns.", "evidence": ["extensions/history/index.ts:1319-1320", "extensions/history/index.ts:1364-1365", "extensions/history/index.ts:1376-1377", "extensions/history/index.ts:1277-1280"] },
+					{ "id": "f4", "text": "The store root is ~/.pi/agent/history; each pi process appends to projects/<hash>/<instance-uuid>.jsonl, where <hash> is the first 16 hex characters of the SHA-256 of the realpath of the cwd.", "evidence": ["extensions/history/index.ts:125-130", "extensions/history/index.ts:1323", "extensions/history/store.ts:38-60"] },
+					{ "id": "f5", "text": "Other files: projects/<hash>/seed.jsonl, history-global.jsonl (imported legacy history), registry.json (hash to cwd) and hidden.json (deletion tombstones).", "evidence": ["extensions/history/store.ts:62-75", "extensions/history/hide-prompts.ts:10-11"] },
+					{ "id": "f6", "text": "Each delivered prompt (before_agent_start) becomes one JSON line {\"v\":1,\"text\":...,\"ts\":...}; empty prompts and slash-command-like prompts are skipped.", "evidence": ["extensions/history/index.ts:1376-1385", "extensions/history/store.ts:209-212", "extensions/history/store.ts:243-256"] },
+					{ "id": "f7", "text": "On first init the extension migrates legacy stores, registers the project, then seeds seed.jsonl with up to 500 prompts from this project's pi session transcripts (newest first, skipping commands, tombstoned and duplicate prompts); the seed is written once and never regenerated.", "evidence": ["extensions/history/index.ts:1333-1359", "extensions/history/store.ts:774-873"] },
+					{ "id": "f8", "text": "On session shutdown (capture on) it compacts the current project when it has more than 50 files or 5000 entries, keeping the 10 newest files and merging older ones into compact-<pid>-<ts>.jsonl.", "evidence": ["extensions/history/index.ts:1387-1399", "extensions/history/store.ts:879-884", "extensions/history/store.ts:921-963"] },
+					{ "id": "f9", "text": "Compaction never merges seed.jsonl or the shutting-down session's own file, needs at least two mergeable files, drops tombstoned prompts, and is skipped if hidden.json cannot be trusted.", "evidence": ["extensions/history/store.ts:905-920", "extensions/history/store.ts:941-962", "extensions/history/store.ts:977-990"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Prompt history is captured by default.", "evidence": ["lib/history-capture-policy.ts:6"] },
+					{ "id": "x2", "text": "Compaction deletes old prompts as a retention limit.", "evidence": ["extensions/history/store.ts:906-910"] }
+				]
+			},
+			"followup": {
+				"prompt": "When Gentle Shell runs with its default isolated home, do the prompt-history store and its transcript seeding follow that home? And when a prompt is deleted from the history selector, what exactly is written to hidden.json and how many entries does that file keep? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "No: the store root and the sessions directory used for seeding are hard-coded from the OS home directory as ~/.pi/agent/history and ~/.pi/agent/sessions, ignoring PI_CODING_AGENT_DIR.", "evidence": ["extensions/history/index.ts:125-133", "extensions/history/index.ts:1321-1326"] },
+						{ "id": "f2", "text": "The launcher's isolated home is only passed through PI_CODING_AGENT_DIR and GENTLE_PI_AGENT_HOME, which the history extension does not read.", "evidence": ["lib/gentle-shell-launcher.ts:946", "extensions/history/index.ts:127"] },
+						{ "id": "f3", "text": "hidden.json gets \"sha256:\" plus the SHA-256 hex of the normalized prompt (whitespace collapsed, trimmed, lowercased), never the text.", "evidence": ["extensions/history/hide-prompts.ts:13-35"] },
+						{ "id": "f4", "text": "It keeps at most 1000 keys in recency order; re-deleting moves a key to the end and the oldest keys are dropped past the cap.", "evidence": ["extensions/history/hide-prompts.ts:49-55", "extensions/history/hide-prompts.ts:163-176"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "The history store lives inside the Gentle Shell home (for example ~/.gentle-shell/agent/history).", "evidence": ["extensions/history/index.ts:127-130"] },
+						{ "id": "x2", "text": "hidden.json stores the deleted prompt text.", "evidence": ["extensions/history/hide-prompts.ts:26-28"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "l3-bash-guard",
+			"size": "large",
+			"prompt": "When the agent runs a shell command through the bash tool, how does Gentle Shell decide whether to allow it, ask for confirmation, or block it? Cover the order of the checks, which commands are recognized, the configuration that changes the outcome, how delegated child sessions differ, and what the YOLO session mode changes. Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "A single tool_call handler in extensions/gentle-ai.ts runs the checks; read/write/edit calls on sensitive paths (.ssh, .env, secrets/, .pem/.key files, cloud credentials) are blocked first.", "evidence": ["extensions/gentle-ai.ts:9528-9535", "extensions/gentle-ai.ts:1551-1569", "extensions/gentle-ai.ts:1677-1688"] },
+					{ "id": "f2", "text": "In a delegated child (GENTLE_PI_AGENTS_CHILD=1) any recognized destructive command is blocked outright, with no confirmation.", "evidence": ["extensions/gentle-ai.ts:9555-9558", "extensions/child-safety.ts:4-7"] },
+					{ "id": "f3", "text": "The recognizer (lib/destructive-command-guard.ts) flags database commands (psql/mysql/mariadb/sqlite3 running DROP, TRUNCATE or DELETE without WHERE), filesystem commands (recursive rm, find -delete or -exec) and git commands (reset, clean, restore, rebase, forced checkout, stash drop/clear, forced branch deletion), looking through env/sudo/xargs wrappers and sh -c.", "evidence": ["lib/destructive-command-guard.ts:41-51", "lib/destructive-command-guard.ts:64-98", "lib/destructive-command-guard.ts:99-137"] },
+					{ "id": "f4", "text": "Only some matches are hard denies: recursive rm on /, ., .., ~ or $HOME, git reset --hard, forced git clean and forced push.", "evidence": ["lib/destructive-command-guard.ts:108-111", "lib/destructive-command-guard.ts:132-137"] },
+					{ "id": "f5", "text": "Evaluation order: recognizer hard deny blocks; then DENIED_BASH_PATTERNS block (rm -rf on root-like targets, reset --hard, clean -fd, force push, chmod -R 777, chown -R); then a configured block; then recognized non-git data loss asks for confirmation; then block, confirm or allow among guarded matches; otherwise not guarded.", "evidence": ["extensions/gentle-ai.ts:1278-1288", "extensions/gentle-ai.ts:1402-1438"] },
+					{ "id": "f6", "text": "Guarded commands are git push, git rebase, forced git branch deletion, npm publish and pi remove; outside autonomous mode every match asks for confirmation.", "evidence": ["extensions/gentle-ai.ts:1317-1323", "extensions/gentle-ai.ts:1339-1345", "extensions/gentle-ai.ts:1389-1391"] },
+					{ "id": "f7", "text": "Autonomous mode defaults: gitPush allow, gitRebase confirm, gitBranchDeleteForce confirm, npmPublish block, piRemove confirm.", "evidence": ["extensions/gentle-ai.ts:1347-1353"] },
+					{ "id": "f8", "text": "Config: GENTLE_PI_AUTONOMOUS_MODE=1 forces autonomous mode; otherwise <config home>/runtime-guardrails.json then <cwd>/.pi/gentle-ai/runtime-guardrails.json (project overrides); any parse or read error falls back to safe non-autonomous mode.", "evidence": ["extensions/gentle-ai.ts:1495-1549", "extensions/gentle-ai.ts:1363-1366"] },
+					{ "id": "f9", "text": "A confirmation without a UI becomes a block; with a UI it shows a confirm dialog (\"Allow recognized data-loss command?\" for data loss) and blocks if not approved.", "evidence": ["extensions/gentle-ai.ts:1817-1864"] },
+					{ "id": "f10", "text": "YOLO (/gentle:yolo, session-only, primary session only) waives confirmation only for one ordinary git push, unless gitPush is configured as confirm or block; destructive confirmations remain.", "evidence": ["extensions/gentle-ai.ts:9529-9530", "extensions/gentle-ai.ts:1759-1782", "extensions/gentle-ai.ts:1796-1799", "extensions/gentle-ai.ts:1815", "lib/yolo-session-policy.ts:5-6", "lib/yolo-session-policy.ts:209-211"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Configuration or autonomous mode can allow a hard-denied command.", "evidence": ["extensions/gentle-ai.ts:1371-1372", "extensions/gentle-ai.ts:1408-1411"] },
+					{ "id": "x2", "text": "YOLO mode skips destructive or data-loss confirmations.", "evidence": ["lib/yolo-session-policy.ts:11", "extensions/gentle-ai.ts:1761"] }
+				]
+			},
+			"followup": {
+				"prompt": "For a primary interactive session with no guardrail config files and no environment overrides, classify each of these commands and name the rule that decides it: (1) git push --force-with-lease origin main, (2) rm -rf ./build, (3) psql -c \"DELETE FROM users\", (4) git rebase main. Then say how (2) is handled in a delegated child session. Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "(1) Blocked: --force-with-lease counts as a forced push, which the recognizer marks as a hard deny.", "evidence": ["lib/destructive-command-guard.ts:132-133", "lib/destructive-command-guard.ts:137", "extensions/gentle-ai.ts:1407-1409"] },
+						{ "id": "f2", "text": "(2) Confirmation as recognized data loss: recursive rm on a non-root target is a filesystem match without hard deny and does not hit the rm -rf deny pattern.", "evidence": ["lib/destructive-command-guard.ts:108-111", "extensions/gentle-ai.ts:1280", "extensions/gentle-ai.ts:1429-1430", "extensions/gentle-ai.ts:1825-1826"] },
+						{ "id": "f3", "text": "(3) Confirmation as recognized data loss: DELETE without WHERE through psql is a database match.", "evidence": ["lib/destructive-command-guard.ts:44-50", "lib/destructive-command-guard.ts:99-106", "extensions/gentle-ai.ts:1429-1430"] },
+						{ "id": "f4", "text": "(4) Confirmation (\"Allow guarded git rebase?\"): rebase is a guarded key and confirms outside autonomous mode; the recognizer's git match is neither a hard deny nor data loss.", "evidence": ["extensions/gentle-ai.ts:1341", "extensions/gentle-ai.ts:1389-1391", "extensions/gentle-ai.ts:1429", "extensions/gentle-ai.ts:1433-1436", "extensions/gentle-ai.ts:1461-1463", "lib/destructive-command-guard.ts:135-137"] },
+						{ "id": "f5", "text": "In a child session, rm -rf ./build is blocked outright because any recognized destructive command is blocked there.", "evidence": ["extensions/child-safety.ts:4-7", "extensions/gentle-ai.ts:9555-9558"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "git push --force-with-lease is allowed or only confirmed because it is the safer force push.", "evidence": ["lib/destructive-command-guard.ts:132"] },
+						{ "id": "x2", "text": "rm -rf ./build is blocked in the primary session.", "evidence": ["lib/destructive-command-guard.ts:109"] }
+					]
+				}
+			}
+		},
+		{
+			"id": "l4-telemetry",
+			"size": "large",
+			"prompt": "How does Gentle Shell handle telemetry? Describe both the per-response runtime usage reporting and the once-per-process telemetry nudge: what triggers each, what is sent and how, which environment variables disable each, and what happens when sending fails or is busy. Answer in English.",
+			"key": {
+				"facts": [
+					{ "id": "f1", "text": "Runtime usage reporting (extensions/runtime-metrics.ts) is inert in child sessions and when the environment vetoes it.", "evidence": ["extensions/runtime-metrics.ts:16-17"] },
+					{ "id": "f2", "text": "Runtime veto: DO_NOT_TRACK, CI or GITHUB_ACTIONS set to any value other than empty, 0, false, no or off, or GENTLE_AI_TELEMETRY=0.", "evidence": ["lib/runtime-metrics-policy.ts:6-11"] },
+					{ "id": "f3", "text": "Each finalized assistant message (message_end) produces event-local rows with token counts and the model/effort captured at before_provider_request; child completions arrive on the gentle:runtime-metrics:child/v1 event, capped at 256 children per session.", "evidence": ["extensions/runtime-metrics.ts:46-55", "extensions/runtime-metrics.ts:80-92", "extensions/runtime-metrics.ts:97-120", "lib/runtime-metrics-children.ts:6"] },
+					{ "id": "f4", "text": "Sending spawns gentle-ai telemetry runtime send --json with the JSON payload on stdin; payloads over 16 KiB are discarded.", "evidence": ["lib/runtime-metrics-native.ts:74-75", "lib/runtime-metrics-native.ts:103-104", "lib/runtime-metrics-native.ts:144-146", "lib/runtime-metrics-native.ts:168"] },
+					{ "id": "f5", "text": "The payload carries model, effort, agent class, token coverage, duration and an error category, not prompts, responses or paths.", "evidence": ["lib/runtime-metrics-native.ts:52-60", "lib/runtime-metrics-native.ts:74"] },
+					{ "id": "f6", "text": "One attempt at a time: while an attempt is busy new events are discarded, never queued, and failures are never retried.", "evidence": ["lib/runtime-metrics-delivery.ts:1-18", "lib/runtime-metrics-delivery.ts:28-29", "lib/runtime-metrics-native.ts:91-100"] },
+					{ "id": "f7", "text": "The send process is killed after 1 second; only the acknowledgements stored, duplicate, discarded and disabled are recognized, with stdout capped at 2048 bytes.", "evidence": ["lib/runtime-metrics-native.ts:136-142", "lib/runtime-metrics-native.ts:149-165"] },
+					{ "id": "f8", "text": "In print mode shutdown waits up to 1.5 s for the accepted attempt; otherwise shutdown cancels immediately.", "evidence": ["extensions/runtime-metrics.ts:8-15", "extensions/runtime-metrics.ts:69-74"] },
+					{ "id": "f9", "text": "The nudge: on the first primary-session before_agent_start in the process (not named agents or children), Gentle spawns gentle-ai telemetry trigger --json detached with stdio ignored, a 3-second kill timer, and swallows every failure.", "evidence": ["extensions/gentle-ai.ts:9411-9440", "lib/telemetry-trigger.ts:12", "lib/telemetry-trigger.ts:124-153"] },
+					{ "id": "f10", "text": "The nudge is skipped only for exact values DO_NOT_TRACK=1, GENTLE_AI_TELEMETRY=0 or CI=true.", "evidence": ["lib/telemetry-trigger.ts:62-77"] }
+				],
+				"forbidden": [
+					{ "id": "x1", "text": "Unsent telemetry is stored on disk or queued for a later retry.", "evidence": ["lib/runtime-metrics-delivery.ts:4-9"] },
+					{ "id": "x2", "text": "Gentle Shell probes the telemetry policy (gentle-ai telemetry policy) before each runtime send; that helper exists but nothing calls it.", "evidence": ["lib/runtime-metrics-policy.ts:26-35", "lib/runtime-metrics-native.ts:91-94"] }
+				]
+			},
+			"followup": {
+				"prompt": "Suppose DO_NOT_TRACK=true (not 1) and CI is unset. Which of the two telemetry paths does Gentle Shell itself still run, and why? And what happens to a usage event that arrives while a previous runtime send is still in progress? Answer in English.",
+				"key": {
+					"facts": [
+						{ "id": "f1", "text": "Runtime usage reporting is disabled, because its veto treats any non-empty value except 0/false/no/off as truthy.", "evidence": ["lib/runtime-metrics-policy.ts:8-9", "extensions/runtime-metrics.ts:16-17"] },
+						{ "id": "f2", "text": "The telemetry trigger is still spawned, because its kill switch checks only DO_NOT_TRACK === \"1\"; opting out is then left to the gentle-ai binary.", "evidence": ["lib/telemetry-trigger.ts:62-77"] },
+						{ "id": "f3", "text": "A usage event arriving while an attempt is in progress is discarded (offer returns false, or send returns discarded), not queued.", "evidence": ["lib/runtime-metrics-delivery.ts:16-18", "lib/runtime-metrics-native.ts:100"] }
+					],
+					"forbidden": [
+						{ "id": "x1", "text": "Both telemetry paths are disabled by DO_NOT_TRACK=true.", "evidence": ["lib/telemetry-trigger.ts:63"] },
+						{ "id": "x2", "text": "The busy event is queued and sent after the current attempt.", "evidence": ["lib/runtime-metrics-delivery.ts:4-5"] }
+					]
+				}
+			}
+		}
+	]
+}

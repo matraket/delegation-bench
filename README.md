@@ -189,6 +189,12 @@ takes the same keys in camelCase (`arms`, `models`, `repetitions`,
 Turns run in order in one session. `tests/fixtures/questions.example.json` is a
 test-only example.
 
+The benchmark question set (12 questions with verified answer keys about
+Gentle Shell `cc36bd8d`) lives in [`questions/`](questions/README.md). Its
+runner files are generated: `questions/generated/long.json` (24 turns, one
+session) and `questions/generated/short/<id>.json` (two turns each), rebuilt
+with `node scripts/build-question-files.mjs`.
+
 ### Arms
 
 Each arm is a copy of the Gentle Shell release under `.bench/arms/<arm>-<key>`,
