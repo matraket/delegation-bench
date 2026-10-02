@@ -246,6 +246,14 @@ Most valuable axes not covered by the original study: other model families (chil
     - Verification: `env -u NAN_API_KEY node grade.mjs --dry-run pilot-01- pilot-02- long-01- long-02-`: 864 answers (pilot-01 96, pilot-02 deepseek 96, pilot-02 qwen 96, long-01 288, long-02 288), 0 empty, est. judge prompt tokens 1,500,915 and visible output about 93k (reasoning tokens not included), "dry run: no judge call was made". `node grade.mjs --sample 30 --seed 5139 --export .bench/grading/calibration-sample.json`: 30 blind entries over 18 distinct turns; entry keys `sampleId, turnId, question, answer, facts, forbidden, language` only.
     - Commit: `1723911` `feat: add blind answer grader`. Parent spot check: `node --test` 118/118; `DEFAULT_JUDGE_MODEL` is `nan/mimo-v2.6-flash` (`lib/grade/judge.mjs:6`).
     - Open for T7.3: whether NaN honors `response_format` for mimo-v2.6-flash (`--no-json-mode` fallback), reasoning-token overhead in the quota forecast, and answer texts that may reveal delegation ("the explorer found ...") despite the blind prompt.
+  - Native review of `14fabd0..1bd1f81` (T7.1 + T7.2): assessed high (executable bit on `grade.mjs`); consent granted; four lenses; approved and acknowledged (lineage `review-8f46a430f355f23f`). Reviewed boundary is now `1bd1f81`. Sixteen non-blocking findings; the ones that matter before live grading are tracked in T7.2.1.
+  - [ ] T7.2.1 Grader hardening before live grading (review follow-ups):
+    - Abort the batch on sustained judge failure (quota 429 or repeated 5xx) instead of retrying every answer (`lib/grade/judge.mjs:78-84`).
+    - Stop remaining pool workers when one throws (`lib/grade/pool.mjs:6-14`).
+    - Verify each answer's turn by its prompt text, not only by position, and fail loudly on mismatch (`lib/grade/run.mjs:30-36`).
+    - Do not replay cached usage as new usage; label in-flight dedupe separately from disk cache hits; do not count skipped empty answers as graded (`lib/grade/run.mjs:49`, `:116-117`, `:175`).
+    - The grader must not require `analysis.json`; skip runs that are not completed (`lib/grade/run.mjs:29`, `lib/report/runs.mjs:96-99`).
+    - Agreement must accept a one-record JSONL file (`grade.mjs:44-51`); include the question prompt in the cache key (`lib/grade/cache.mjs:8`); retry body-read timeouts; keep provider error bodies out of committed outputs.
   - [ ] T7.3 Calibration and grading run (after authorization): grade all batches, check judge agreement on a blind sample graded independently, then the Spanish report draft for the user, translated to English only for publishing on #5139.
 
 ## Next step
