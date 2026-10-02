@@ -340,3 +340,59 @@ Aggregates are grouped by model, then arm: counts, totals, medians and
 min-max over sessions. Short batches add a per-size breakdown and the median
 over questions of the per-question NaN cost ratio versus `inline`. The
 definitions and numbers match the T5/T6 prototype scripts.
+
+## Answer grader
+
+`grade.mjs` grades every user turn's final parent answer (the last non-empty
+assistant text before the next user message) against its key in
+`questions/gentle-shell-cc36bd8d.set.json`. Turn ids map to keys as
+`<id>` (main question) and `<id>-followup` (its follow-up); turns without a
+key are reported and skipped.
+
+```bash
+env -u NAN_API_KEY node grade.mjs --dry-run pilot-01- pilot-02- long-01- long-02-   # counts and forecast, no API call
+NAN_API_KEY=... node grade.mjs pilot-01- pilot-02- long-01- long-02-                # live judging
+node grade.mjs --sample 30 --seed 5139 --export .bench/grading/calibration-sample.json
+node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
+```
+
+- Blind: the judge sees only the question prompt, the answer, the key facts
+  and the forbidden claims, never the arm, model, run id or costs. Run
+  metadata is joined after judging.
+- Judge: OpenAI-compatible chat completions at
+  `https://api.nan.builders/v1/chat/completions`, default model
+  `nan/mimo-v2.6-flash` (`--judge`), temperature 0, `response_format`
+  `json_object` (`--no-json-mode` to drop it). The key is read only from
+  `NAN_API_KEY` (never from auth files) and is never logged; live judging
+  without it fails before any call. Bounded concurrency (`--concurrency`,
+  default 2), per-request timeout (`--timeout-ms`, default 120 s), retries
+  with exponential backoff on 429, 5xx, network errors and timeouts
+  (`--max-retries`, default 4; `Retry-After` honored). Other HTTP errors
+  fail that answer at once.
+- Validation: the reply must be one JSON object (a single ```` ```json ````
+  fence is tolerated) with every fact id once (`supported: true|false`),
+  every forbidden id once (`present: true|false`) and `language`
+  `en|es|other`. An invalid reply is asked again once, then recorded as an
+  error; the batch continues (exit 2 when any answer has an error).
+- Score: supported facts / total facts. Fully correct: every fact supported
+  and no forbidden claim. Empty answers are not sent to the judge and score 0.
+- Cache: `<out>/cache/`, one file per SHA-256 of (turn id, answer, key, judge
+  model, prompt version), so reruns judge only new or changed answers.
+  Identical answers to the same turn share one call. Judge usage tokens are
+  recorded per answer.
+- `--dry-run`: answers per batch (batch = run id before its `-NN-` sequence
+  number), empty, cached and duplicate counts, and estimated judge prompt
+  tokens (chars/4) and visible output tokens (reasoning tokens not included).
+- `--sample N --seed S --export <file>`: a seeded blind sample (question,
+  answer, facts and forbidden claims with empty verdicts; no run, arm or model
+  field) for independent grading. The filled file is the reference for
+  `--agreement <judge-results> <reference-results>`, which reports per-fact
+  agreement (rate and Cohen's kappa), forbidden-claim and language agreement,
+  score correlation (Pearson) and mean absolute score difference, with every
+  disagreement listed.
+
+Output in `--out` (default `.bench/grading`): `grades.jsonl` (one line per
+answer: verdicts, score, usage, then batch, run id, arm, model, replicate,
+turn), `summary.json` and `summary.md` (per batch x model x arm: median and
+mean score, share fully correct, forbidden claims, languages). Without a
+selector every run under `--runs` is graded.
