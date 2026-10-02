@@ -302,3 +302,41 @@ that sends SIGTERM to the launcher group.
 - `events.jsonl` (every record in both directions) and `stderr.log`.
 
 The exit code is 0 when every run completed, 2 when any run did not, 1 on errors.
+
+## Batch report
+
+`report.mjs` summarizes completed runs per batch: cost per arm, delegation,
+parent context, wall time, evidence-budget adherence and reply language.
+Read-only over `.bench/runs`.
+
+```bash
+node report.mjs pilot-01-                      # run-id prefix
+node report.mjs 'long-0?-*' --out /tmp/reports # glob
+node report.mjs pilot-01- long-01- --runs .bench/runs --out .bench/reports
+```
+
+Per selector it writes `<out>/<batch>.json` (every per-session row plus the
+aggregates) and `<out>/<batch>.md` (the tables), and prints the summary line
+and tables. A selector that matches no run is an error (exit 1).
+
+Arm, model, question file and repetition come from each run's
+`manifest.json`; directory names are only a fallback. The runner's `rep` is
+the repetition inside one run id, so batch repetitions (`long-01-03-inline-r2`)
+are read from the `-r<n>` run-id suffix as `replicate`. Short and long
+batches are told apart by the question file id (`/short/` or `/long`).
+
+| Metric | Definition |
+|--------|------------|
+| Cost (`nan`, `api`) | `analysis.json` totals over the parent and its children. |
+| Prompt, output, zero-usage turns | Analyzer token totals (`input + cacheRead + cacheWrite`, `output`). |
+| Peak, final parent context | Analyzer `peakPrompt` and `finalContext` of the parent. |
+| Wall time | Sum of the manifest's per-turn `durationMs`. |
+| Evidence per user turn | Parent tool-result text chars / 4 between one user message and the next. |
+| Tool rounds per user turn | Parent assistant messages with at least one tool call. |
+| Turn over budget | Evidence above 10k tokens or more than 5 tool rounds. |
+| Reply language | Last non-empty assistant text of the turn: Spanish when it has more common Spanish words than English ones (crude); late = turn 13 onwards. |
+
+Aggregates are grouped by model, then arm: counts, totals, medians and
+min-max over sessions. Short batches add a per-size breakdown and the median
+over questions of the per-question NaN cost ratio versus `inline`. The
+definitions and numbers match the T5/T6 prototype scripts.
