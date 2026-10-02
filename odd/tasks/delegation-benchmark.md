@@ -213,6 +213,16 @@ Most valuable axes not covered by the original study: other model families (chil
     | delegate | 3/3 | 61 | 4.13M (3.92-6.75M) | 1.88M | 79.6k | 49 min | 1/72 |
 
   - Reading (long sessions): under NaN weights (cache reads count 1:1) forced delegation costs about half of any inline arm, with no overlap between ranges across 3 repetitions, and halves the parent context (80k vs 152-158k). Under API weights (cache read 0.1) the same sessions rank the other way: delegation costs about 25-45% more, because carried context is cheap there. The pricing model decides the conclusion. `shipped` still never delegated (0 in 72 turns, 13 over budget). Delegation took about 1.6-1.8x the wall time. No Spanish-reply drift detected in any arm (crude word-count detector; bench homes use the default persona, so this does not replicate #5139's persona setting).
+  - `long-02` deepseek-v4-flash (2026-10-01 22:00 to 2026-10-02 02:43 UTC, user-authorized, forecast 100M): 12/12 sessions, 288/288 turns settled. NaN usage delta (summed over both UTC days) prompt 196,730,717, completion 1,529,243; analyzer identical (exact). Quota used about 198M, about 2x the forecast.
+
+    | Arm | Reps that delegated | Children | NaN median (min-max) | API-weight median | Final parent context (median) | Wall (median) | Turns over budget |
+    |---|---|---|---|---|---|---|---|
+    | old-rules | 3/3 | 7 | 18.19M (16.73-20.24M) | 2.85M | 254.0k | 21 min | 20/72 |
+    | inline | 0/3 | 0 | 15.76M (14.99-34.87M) | 2.30M | 263.9k | 19 min | 23/72 |
+    | shipped | 1/3 | 1 | 11.94M (11.42-18.79M) | 2.00M | 246.2k | 21 min | 18/72 |
+    | delegate | 3/3 | 49 | 11.41M (10.86-13.06M) | 2.72M | 170.5k | 34 min | 1/72 |
+
+  - Reading (deepseek long): forced delegation is cheapest at the median under NaN weights (0.72x inline; its range stays below inline's minimum) and shrinks the parent by about 35%, a smaller gain than on glm5.3-flash (0.44x). `shipped` is close to `delegate` at the median without delegating (1 child in 72 turns), so part of the gap among inline arms is variance. Under API weights delegation again costs more (+18% vs inline). Language drift: one session (`long-02-05-delegate-r1`) answered about 15 of 24 turns in Spanish from the first turn despite "Answer in English"; no other deepseek or glm long session drifted. Likely pull from the default Gentle Shell persona (not verified).
   - `pilot-02` qwen3.8-flash (13:45-18:48 UTC): 48/48 completed, 6 zero-usage turns. NaN usage delta prompt 64,637,039, completion 982,938, 1,720 requests; analyzer prompt 64,436,504 (-0.31%), output 986,557 (+0.37%), the gap is attributed to the 6 aborted turns (not verified). Quota used about 65M, about 3x the 20M forecast (qwen3.8-flash reads much more per question).
 
     | Arm | Sessions that delegated | Children | NaN total | NaN median | Median vs inline | Final parent context (median) | Wall (median) | Turns over budget |
