@@ -349,6 +349,15 @@ assistant text before the next user message) against its key in
 `<id>` (main question) and `<id>-followup` (its follow-up); turns without a
 key are reported and skipped.
 
+- Runs: only runs whose manifest status is `completed` are graded; the
+  grader reads the manifest and the parent session, not `analysis.json`.
+  Turn ids map to session turns by position, so every mapped turn's sent
+  prompt must equal its key's prompt (and the manifest's planned prompt);
+  one mismatch skips the whole run as misaligned, so no answer is graded
+  against the wrong key. Skipped runs (not completed or misaligned) are
+  listed on every run, `--dry-run` included, and in `summary.json`; a live
+  run with a misaligned run exits 2.
+
 ```bash
 env -u NAN_API_KEY node grade.mjs --dry-run pilot-01- pilot-02- long-01- long-02-   # counts and forecast, no API call
 NAN_API_KEY=... node grade.mjs pilot-01- pilot-02- long-01- long-02-                # live judging
@@ -367,8 +376,17 @@ node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
   without it fails before any call. Bounded concurrency (`--concurrency`,
   default 2), per-request timeout (`--timeout-ms`, default 120 s), retries
   with exponential backoff on 429, 5xx, network errors and timeouts
-  (`--max-retries`, default 4; `Retry-After` honored). Other HTTP errors
-  fail that answer at once.
+  (`--max-retries`, default 4; `Retry-After` honored); a body read that
+  times out and a truncated or invalid JSON body are retried too. Other HTTP
+  errors fail that answer at once. Errors record only the HTTP status and a
+  short provider code (for example `judge HTTP 429 (insufficient_quota)
+  after 5 attempts`), never the response body, the key or headers.
+- Circuit breaker: when `--abort-after` consecutive answers (default 3) fail
+  after every retry (sustained 429 quota or 5xx), the batch stops with exit
+  1 and does not judge the remaining answers. Judgments already made stay in
+  the cache and the previous `grades.jsonl` is left untouched, so a rerun
+  resumes where it stopped. Any other judge outcome resets the count; one
+  failing worker stops the others from taking new answers.
 - Validation: the reply must be one JSON object (a single ```` ```json ````
   fence is tolerated) with every fact id once (`supported: true|false`),
   every forbidden id once (`present: true|false`) and `language`
@@ -376,10 +394,14 @@ node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
   error; the batch continues (exit 2 when any answer has an error).
 - Score: supported facts / total facts. Fully correct: every fact supported
   and no forbidden claim. Empty answers are not sent to the judge and score 0.
-- Cache: `<out>/cache/`, one file per SHA-256 of (turn id, answer, key, judge
-  model, prompt version), so reruns judge only new or changed answers.
-  Identical answers to the same turn share one call. Judge usage tokens are
-  recorded per answer.
+- Cache: `<out>/cache/`, one file per SHA-256 of (cache key version, turn
+  id, question prompt, answer, key, judge model, prompt version), so reruns
+  judge only new or changed answers. Identical answers to the same turn share
+  one call. Each record's `judge.source` is `judge` (called in this run),
+  `cache` (disk hit), `dedupe` (shared another answer's call; a copy of a
+  failed call is recorded as failed) or `skipped` (empty answer). Usage
+  tokens are recorded only on the answer whose call was made in this run, so
+  run totals never replay cached usage.
 - `--dry-run`: answers per batch (batch = run id before its `-NN-` sequence
   number), empty, cached and duplicate counts, and estimated judge prompt
   tokens (chars/4) and visible output tokens (reasoning tokens not included).
@@ -394,5 +416,8 @@ node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
 Output in `--out` (default `.bench/grading`): `grades.jsonl` (one line per
 answer: verdicts, score, usage, then batch, run id, arm, model, replicate,
 turn), `summary.json` and `summary.md` (per batch x model x arm: median and
-mean score, share fully correct, forbidden claims, languages). Without a
-selector every run under `--runs` is graded.
+mean score, share fully correct, forbidden claims, languages; Graded counts
+answers with a judge verdict, empty answers are counted under Empty and
+score 0). Without a selector every run under `--runs` is graded.
+`--agreement` accepts JSON (an array or a sample file) or JSONL, including a
+JSONL file with a single record.

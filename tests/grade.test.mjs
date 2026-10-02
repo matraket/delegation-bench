@@ -2,20 +2,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createServer } from "node:http";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { assistant, buildShortBatch, makeTempDir, toolResult, user } from "./bench-fixture.mjs";
+import { assistant, buildShortBatch, makeTempDir, toolResult, user, writeRun } from "./bench-fixture.mjs";
 import { buildKeyIndex } from "../lib/grade/keys.mjs";
 import { extractAnswers } from "../lib/grade/extract.mjs";
 import { PROMPT_VERSION, buildJudgeMessages } from "../lib/grade/prompt.mjs";
 import { JudgmentError, parseJudgment } from "../lib/grade/validate.mjs";
 import { scoreJudgment } from "../lib/grade/score.mjs";
-import { createCache } from "../lib/grade/cache.mjs";
-import { apiModelName, createNanJudge, requireApiKey } from "../lib/grade/judge.mjs";
+import { CACHE_KEY_VERSION, cacheKey, createCache } from "../lib/grade/cache.mjs";
+import { JudgeError, apiModelName, createNanJudge, requireApiKey } from "../lib/grade/judge.mjs";
 import { mapLimit } from "../lib/grade/pool.mjs";
-import { batchOf, collectAnswers, forecast, gradeAnswers, summarize } from "../lib/grade/run.mjs";
+import { JudgeAbortError, batchOf, collectAnswers, forecast, gradeAnswers, summarize } from "../lib/grade/run.mjs";
 import { computeAgreement, sampleBlind } from "../lib/grade/sample.mjs";
 
 const run = promisify(execFile);
@@ -25,14 +25,14 @@ const SET = {
 	id: "set",
 	questions: [
 		{
-			id: "q-small", size: "small", prompt: "What does the small thing do? Answer in English.",
+			id: "q-small", size: "small", prompt: "small question",
 			key: { facts: [{ id: "f1", text: "It draws 8 cells.", evidence: ["a.ts:1"] }, { id: "f2", text: "It uses two glyphs.", evidence: ["a.ts:2"] }], forbidden: [{ id: "x1", text: "It draws 10 cells." }] },
-			followup: { prompt: "And for 6%? Answer in English.", key: { facts: [{ id: "f1", text: "One cell is filled.", evidence: ["a.ts:3"] }] } },
+			followup: { prompt: "small followup", key: { facts: [{ id: "f1", text: "One cell is filled.", evidence: ["a.ts:3"] }] } },
 		},
 		{
-			id: "q-large", size: "large", prompt: "Explain the large flow. Answer in English.",
+			id: "q-large", size: "large", prompt: "large question",
 			key: { facts: [{ id: "f1", text: "The launcher picks a home.", evidence: ["b.ts:1"] }] },
-			followup: { prompt: "And the version check? Answer in English.", key: { facts: [{ id: "f1", text: "It requires pi 0.99.", evidence: ["b.ts:2"] }], forbidden: [{ id: "x1", text: "No check." }] } },
+			followup: { prompt: "large followup", key: { facts: [{ id: "f1", text: "It requires pi 0.99.", evidence: ["b.ts:2"] }], forbidden: [{ id: "x1", text: "No check." }] } },
 		},
 	],
 };
@@ -63,8 +63,8 @@ test("extractAnswers takes the last non-empty assistant text of each user turn a
 		entries: [user("p1"), assistant("draft"), assistant(null, { tools: 1 }), toolResult(10), assistant("final answer"), assistant(" "), user("p2"), assistant("")],
 	});
 	assert.deepEqual(answers, [
-		{ turnId: "q-small", turnIndex: 0, turnStatus: "settled", answer: "final answer", promptMatches: true },
-		{ turnId: "q-small-followup", turnIndex: 1, turnStatus: "aborted", answer: "", promptMatches: true },
+		{ turnId: "q-small", turnIndex: 0, turnStatus: "settled", prompt: "p1", answer: "final answer", promptMatches: true },
+		{ turnId: "q-small-followup", turnIndex: 1, turnStatus: "aborted", prompt: "p2", answer: "", promptMatches: true },
 	]);
 });
 
@@ -76,7 +76,7 @@ test("buildKeyIndex maps <id> and <id>-followup to their prompt and key", () => 
 	assert.deepEqual(main.facts.map((f) => f.id), ["f1", "f2"]);
 	assert.deepEqual(main.forbidden.map((f) => f.id), ["x1"]);
 	assert.equal(main.followup, false);
-	assert.equal(follow.prompt, "And for 6%? Answer in English.");
+	assert.equal(follow.prompt, "small followup");
 	assert.deepEqual(follow.forbidden, [], "a follow-up without forbidden claims gets an empty list");
 	assert.equal(follow.followup, true);
 	assert.equal(follow.questionId, "q-small");
@@ -150,12 +150,17 @@ test("gradeAnswers judges each answer once, joins run metadata after judging, an
 	const calls = [];
 	const records = await gradeAnswers(answers, { judge: perfectJudge(calls), judgeModel: "nan/mimo-v2.6-flash", cache, concurrency: 1 });
 	// 8 answers: the empty one is not judged, and both q-large main answers are
-	// the same text, so the second is a cache hit within the same run.
+	// the same text, so the second shares the first one's call (deduplicated).
 	assert.equal(calls.length, 6);
-	assert.equal(records.filter((r) => r.judge.cached).length, 1);
+	assert.deepEqual(records.map((r) => r.judge.source).sort(), ["dedupe", "judge", "judge", "judge", "judge", "judge", "judge", "skipped"]);
+	const dedupe = records.find((r) => r.judge.source === "dedupe");
+	assert.deepEqual(dedupe.usage, { promptTokens: 0, completionTokens: 0, calls: 0 });
+	assert.equal(dedupe.error, null);
 	const parallel = [];
-	await gradeAnswers(answers, { judge: perfectJudge(parallel), judgeModel: "nan/mimo-v2.6-flash", cache: createCache(join(root, "cache-parallel")), concurrency: 8 });
+	const parallelRecords = await gradeAnswers(answers, { judge: perfectJudge(parallel), judgeModel: "nan/mimo-v2.6-flash", cache: createCache(join(root, "cache-parallel")), concurrency: 8 });
 	assert.equal(parallel.length, 6, "identical answers in flight together share one call");
+	assert.equal(parallelRecords.filter((r) => r.judge.source === "dedupe").length, 1, "an in-flight duplicate is labelled dedupe");
+	assert.equal(parallelRecords.filter((r) => r.judge.source === "cache").length, 0, "an in-flight duplicate is not a disk cache hit");
 	for (const messages of calls) assert.ok(!JSON.stringify(messages).includes("fx-01"), "run ids never reach the judge");
 	const rec = records.find((r) => r.runId === "fx-01-01-q-small-inline" && r.turnId === "q-small");
 	assert.equal(rec.arm, "inline");
@@ -163,15 +168,17 @@ test("gradeAnswers judges each answer once, joins run metadata after judging, an
 	assert.equal(rec.score, 1);
 	assert.equal(rec.fullyCorrect, true);
 	assert.deepEqual(rec.usage, { promptTokens: 100, completionTokens: 20, calls: 1 });
-	assert.equal(rec.judge.cached, false);
+	assert.equal(rec.judge.source, "judge");
 	const empty = records.find((r) => r.answerChars === 0);
 	assert.equal(empty.skipped, "empty-answer");
 	assert.equal(empty.score, 0);
+	assert.equal(empty.judge.source, "skipped");
 
 	const again = [];
 	const second = await gradeAnswers(answers, { judge: perfectJudge(again), judgeModel: "nan/mimo-v2.6-flash", cache, concurrency: 2 });
 	assert.equal(again.length, 0, "a cache hit avoids a second judge call");
-	assert.equal(second.find((r) => r.turnId === "q-small" && r.arm === "inline").judge.cached, true);
+	assert.equal(second.find((r) => r.turnId === "q-small" && r.arm === "inline").judge.source, "cache");
+	assert.ok(second.every((r) => r.usage.calls === 0 && r.usage.promptTokens === 0 && r.usage.completionTokens === 0), "a disk cache hit does not replay the original call's usage");
 
 	const otherModel = [];
 	await gradeAnswers(answers.slice(0, 1), { judge: perfectJudge(otherModel), judgeModel: "nan/other", cache, concurrency: 1 });
@@ -234,7 +241,7 @@ test("summarize reports median score, fully correct share, forbidden claims and 
 	];
 	const summary = summarize(records);
 	const inline = summary.find((s) => s.arm === "inline");
-	assert.deepEqual(inline, { batch: "b", model: "m", arm: "inline", answers: 3, graded: 3, errors: 0, emptyAnswers: 1, medianScore: 0.5, meanScore: 0.5, fullyCorrectShare: 1 / 3, forbiddenClaims: 1, answersWithForbidden: 1, language: { en: 1, es: 1, other: 0, none: 1 } });
+	assert.deepEqual(inline, { batch: "b", model: "m", arm: "inline", answers: 3, graded: 2, errors: 0, emptyAnswers: 1, medianScore: 0.5, meanScore: 0.5, fullyCorrectShare: 1 / 3, forbiddenClaims: 1, answersWithForbidden: 1, language: { en: 1, es: 1, other: 0, none: 1 } });
 	assert.equal(summary.find((s) => s.arm === "delegate").errors, 1);
 });
 
@@ -423,7 +430,7 @@ test("grade.mjs grades against a fake server and writes grades.jsonl and a summa
 	try {
 		const env = { ...process.env, NAN_API_KEY: "fake" };
 		const { stdout } = await run(process.execPath, [CLI, "fx-01-", "--runs", runs, "--set", setPath, "--out", out, "--judge-url", `http://127.0.0.1:${server.address().port}/v1/chat/completions`], { env });
-		assert.match(stdout, /graded 8 answers \(6 judged, 1 cached, 1 empty, 0 errors\)/);
+		assert.match(stdout, /8 answers: 6 judged, 0 cached, 1 deduplicated, 1 empty, 0 errors/);
 		const lines = (await readFile(join(out, "grades.jsonl"), "utf8")).trim().split("\n").map((l) => JSON.parse(l));
 		assert.equal(lines.length, 8);
 		const smallMain = lines.find((l) => l.turnId === "q-small" && l.arm === "inline");
@@ -467,4 +474,241 @@ test("grade.mjs --agreement compares a judge results file with a filled sample",
 	const result = JSON.parse(stdout);
 	assert.equal(result.answers, 3);
 	assert.equal(result.facts.rate, 1);
+});
+
+// --- T7.2.1 hardening ---
+
+const listen = async (handler) => {
+	const server = createServer(handler);
+	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+	return { server, url: `http://127.0.0.1:${server.address().port}/v1/chat/completions` };
+};
+const okBody = (content = "{\"ok\":true}") => JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+
+test("mapLimit stops the other workers from taking new items when one throws", async () => {
+	const started = [];
+	await assert.rejects(mapLimit(Array.from({ length: 10 }, (_, i) => i), 2, async (x) => {
+		started.push(x);
+		if (x === 0) {
+			await new Promise((resolve) => setTimeout(resolve, 1));
+			throw new Error("boom");
+		}
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		return x;
+	}), /boom/);
+	await new Promise((resolve) => setTimeout(resolve, 60));
+	assert.deepEqual(started, [0, 1], "no item starts after a worker threw");
+});
+
+const exhausted = () => new JudgeError("judge HTTP 429 after 5 attempts", { status: 429, retryable: true, exhausted: true });
+
+test("gradeAnswers aborts after N consecutive exhausted judge failures and keeps cached judgments for a rerun", async () => {
+	const { root, runs, keyIndex } = await fixture();
+	const { answers } = await collectAnswers({ runsRoot: runs, selectors: ["fx-01-"], keyIndex });
+	const cache = createCache(join(root, "cache"));
+	let calls = 0;
+	const good = perfectJudge();
+	const failing = async (messages) => {
+		calls += 1;
+		if (calls <= 2) return good(messages);
+		throw exhausted();
+	};
+	await assert.rejects(gradeAnswers(answers, { judge: failing, judgeModel: "nan/mimo-v2.6-flash", cache, concurrency: 1, abortAfter: 3 }), (error) => {
+		assert.ok(error instanceof JudgeAbortError);
+		assert.match(error.message, /3 consecutive answers failed/);
+		assert.match(error.message, /HTTP 429/);
+		return true;
+	});
+	assert.equal(calls, 5, "two successes, then three failures, then nothing more");
+	const rerun = [];
+	const records = await gradeAnswers(answers, { judge: perfectJudge(rerun), judgeModel: "nan/mimo-v2.6-flash", cache, concurrency: 1 });
+	assert.equal(rerun.length, 4, "the rerun judges only what the aborted batch did not cache");
+	assert.equal(records.filter((r) => r.judge.source === "cache").length, 2);
+});
+
+test("gradeAnswers resets the breaker on success and does not trip on non-retryable errors", async () => {
+	const { root, runs, keyIndex } = await fixture();
+	const { answers } = await collectAnswers({ runsRoot: runs, selectors: ["fx-01-"], keyIndex });
+	let calls = 0;
+	const good = perfectJudge();
+	const alternating = async (messages) => {
+		calls += 1;
+		if (calls % 2) throw exhausted();
+		return good(messages);
+	};
+	const mixed = await gradeAnswers(answers, { judge: alternating, judgeModel: "nan/mimo-v2.6-flash", cache: createCache(join(root, "c1")), concurrency: 1, abortAfter: 2 });
+	assert.equal(mixed.filter((r) => r.error).length, 4, "three failed calls plus the deduplicated copy of one; never three in a row");
+	const badRequest = async () => { throw new JudgeError("judge HTTP 400", { status: 400, retryable: false }); };
+	const records = await gradeAnswers(answers, { judge: badRequest, judgeModel: "nan/mimo-v2.6-flash", cache: createCache(join(root, "c2")), concurrency: 8, abortAfter: 2 });
+	assert.equal(records.filter((r) => r.error).length, 7);
+	const copy = records.find((r) => r.judge.source === "dedupe");
+	assert.ok(copy, "the duplicate answer shares the failed call");
+	assert.match(copy.error, /HTTP 400/, "a deduplicated copy of a failed judgment is recorded as failed");
+	assert.equal(copy.score, null);
+});
+
+test("collectAnswers skips a run whose user prompts do not match the keyed prompts", async () => {
+	const { runs, keyIndex } = await fixture();
+	await writeRun(runs, {
+		runId: "fx-01-05-q-small-inline", arm: "inline", model: "nan/test-model",
+		questions: { path: null, id: "set/short/q-small" },
+		turns: [{ id: "q-small", durationMs: 1 }, { id: "q-small-followup", durationMs: 1 }],
+		entries: [user("small followup"), assistant("Answer one."), user("small question"), assistant("Answer two.")],
+		analysis: { nan: 1, api: 1, peak: 1, final: 1, input: 1, cacheRead: 1, output: 1 },
+	});
+	const { answers, misaligned } = await collectAnswers({ runsRoot: runs, selectors: ["fx-01-"], keyIndex });
+	assert.equal(answers.length, 8, "no answer of the misaligned run is graded");
+	assert.ok(answers.every((a) => a.meta.runId !== "fx-01-05-q-small-inline"));
+	assert.deepEqual(misaligned.map((m) => [m.runId, m.turnIndex, m.turnId]), [["fx-01-05-q-small-inline", 0, "q-small"]]);
+});
+
+test("collectAnswers skips runs that are not completed and does not need analysis.json", async () => {
+	const { runs, keyIndex } = await fixture();
+	const failedDir = await writeRun(runs, {
+		runId: "fx-01-06-q-small-delegate", arm: "delegate", model: "nan/test-model", status: "failed",
+		questions: { path: null, id: "set/short/q-small" },
+		turns: [{ id: "q-small", durationMs: 1 }],
+		entries: [user("small question"), assistant("Partial.")],
+		analysis: { nan: 1, api: 1, peak: 1, final: 1, input: 1, cacheRead: 1, output: 1 },
+	});
+	await rm(join(failedDir, "analysis.json"));
+	await rm(join(runs, "fx-01-01-q-small-inline", "inline", "nan_test-model", "rep-1", "analysis.json"));
+	const { answers, skippedRuns } = await collectAnswers({ runsRoot: runs, selectors: ["fx-01-"], keyIndex });
+	assert.equal(answers.length, 8, "the completed run without analysis.json is still graded");
+	assert.deepEqual(skippedRuns, [{ runId: "fx-01-06-q-small-delegate", status: "failed" }]);
+});
+
+test("cacheKey includes the question prompt and a cache key version", () => {
+	const base = { turnId: "q", answer: "a", key: { prompt: "p1", facts: [{ id: "f1", text: "t" }], forbidden: [] }, judgeModel: "m", promptVersion: "grade-v1" };
+	assert.notEqual(cacheKey(base), cacheKey({ ...base, key: { ...base.key, prompt: "p2" } }));
+	assert.equal(cacheKey(base), cacheKey({ ...base }));
+	assert.match(CACHE_KEY_VERSION, /^cache-v[2-9]/);
+});
+
+test("createNanJudge retries a body-read timeout and a truncated JSON body", async () => {
+	let hits = 0;
+	const { server, url } = await listen((req, res) => {
+		hits += 1;
+		req.resume();
+		res.writeHead(200, { "content-type": "application/json" });
+		if (hits === 1) return res.write("{\"choices\":"); // headers sent, body hangs
+		if (hits === 2) return res.end("{\"choices\":[{\"mess"); // truncated body
+		res.end(okBody());
+	});
+	try {
+		const judge = createNanJudge({ model: "m", apiKey: "k", url, timeoutMs: 100, baseDelayMs: 1, maxRetries: 3, sleep: async () => {} });
+		const result = await judge([{ role: "user", content: "hi" }]);
+		assert.equal(result.attempts, 3);
+		assert.equal(result.content, "{\"ok\":true}");
+	} finally {
+		server.closeAllConnections();
+		server.close();
+	}
+});
+
+test("judge errors carry the HTTP status as a field and never the provider body", async () => {
+	const { server, url } = await listen((req, res) => {
+		req.resume();
+		res.writeHead(429, { "content-type": "application/json", "retry-after": "0" });
+		res.end(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "PROVIDER-SECRET-BODY quota for org-123" } }));
+	});
+	try {
+		const judge = createNanJudge({ model: "m", apiKey: "secret-key-123", url, baseDelayMs: 1, maxRetries: 1, sleep: async () => {} });
+		await assert.rejects(judge([]), (error) => {
+			assert.ok(error instanceof JudgeError);
+			assert.equal(error.status, 429);
+			assert.equal(error.exhausted, true);
+			assert.match(error.message, /HTTP 429/);
+			assert.match(error.message, /rate_limit_exceeded/);
+			assert.ok(!error.message.includes("PROVIDER-SECRET-BODY"));
+			assert.ok(!error.message.includes("secret-key-123"));
+			return true;
+		});
+	} finally {
+		server.close();
+	}
+});
+
+test("grade.mjs aborts on a sustained 429, exits non-zero, keeps prior grades and writes no provider body", async () => {
+	const { runs, setPath, out } = await cliFixture();
+	let hits = 0;
+	const { server, url } = await listen((req, res) => {
+		hits += 1;
+		req.resume();
+		res.writeHead(429, { "content-type": "application/json", "retry-after": "0" });
+		res.end(JSON.stringify({ error: { code: "insufficient_quota", message: "PROVIDER-SECRET-BODY" } }));
+	});
+	try {
+		const { mkdir } = await import("node:fs/promises");
+		await mkdir(out, { recursive: true });
+		await writeFile(join(out, "grades.jsonl"), "PRIOR\n");
+		const env = { ...process.env, NAN_API_KEY: "fake" };
+		await assert.rejects(run(process.execPath, [CLI, "fx-01-", "--runs", runs, "--set", setPath, "--out", out, "--judge-url", url, "--max-retries", "0", "--abort-after", "2", "--concurrency", "1"], { env }), (error) => {
+			assert.equal(error.code, 1);
+			assert.match(error.stderr, /2 consecutive answers failed/);
+			assert.match(error.stderr, /rerun to resume/);
+			assert.ok(!error.stderr.includes("PROVIDER-SECRET-BODY"));
+			return true;
+		});
+		assert.equal(hits, 2, "the batch stops after two failed answers");
+		assert.equal(await readFile(join(out, "grades.jsonl"), "utf8"), "PRIOR\n");
+	} finally {
+		server.close();
+	}
+});
+
+test("grade.mjs records a failed answer without the provider body in grades.jsonl and the summary", async () => {
+	const { runs, setPath, out } = await cliFixture();
+	const { server, url } = await listen((req, res) => {
+		req.resume();
+		res.writeHead(400, { "content-type": "application/json" });
+		res.end(JSON.stringify({ error: { code: "bad_request", message: "PROVIDER-SECRET-BODY" } }));
+	});
+	try {
+		const env = { ...process.env, NAN_API_KEY: "fake" };
+		await assert.rejects(run(process.execPath, [CLI, "fx-01-", "--runs", runs, "--set", setPath, "--out", out, "--judge-url", url], { env }), (error) => error.code === 2);
+		for (const file of ["grades.jsonl", "summary.json", "summary.md"]) {
+			const text = await readFile(join(out, file), "utf8");
+			assert.ok(!text.includes("PROVIDER-SECRET-BODY"), `${file} holds the provider body`);
+		}
+		assert.match(await readFile(join(out, "grades.jsonl"), "utf8"), /HTTP 400 \(bad_request\)/);
+	} finally {
+		server.close();
+	}
+});
+
+test("grade.mjs --dry-run reports misaligned and not-completed runs as skipped", async () => {
+	const { runs, setPath, out } = await cliFixture();
+	await writeRun(runs, {
+		runId: "fx-01-05-q-small-inline", arm: "inline", model: "nan/test-model", status: "aborted",
+		questions: { path: null, id: "set/short/q-small" }, turns: [{ id: "q-small", durationMs: 1 }],
+		entries: [user("small question"), assistant("A.")], analysis: { nan: 1, api: 1, peak: 1, final: 1, input: 1, cacheRead: 1, output: 1 },
+	});
+	await writeRun(runs, {
+		runId: "fx-01-06-q-small-inline", arm: "inline", model: "nan/test-model",
+		questions: { path: null, id: "set/short/q-small" }, turns: [{ id: "q-small", durationMs: 1 }],
+		entries: [user("something else"), assistant("A.")], analysis: { nan: 1, api: 1, peak: 1, final: 1, input: 1, cacheRead: 1, output: 1 },
+	});
+	const env = { ...process.env };
+	delete env.NAN_API_KEY;
+	const { stdout } = await run(process.execPath, [CLI, "--dry-run", "fx-01-", "--runs", runs, "--set", setPath, "--out", out], { env });
+	assert.match(stdout, /skipped runs: 2 \(1 not completed, 1 misaligned\)/);
+	assert.match(stdout, /fx-01-05-q-small-inline: status aborted/);
+	assert.match(stdout, /fx-01-06-q-small-inline: turn 0 \(q-small\) prompt does not match the key/);
+	assert.match(stdout, /fx-01 +4 runs +8 turns/);
+});
+
+test("grade.mjs --agreement accepts a JSONL file with exactly one record", async () => {
+	const { runs, setPath, out } = await cliFixture();
+	const file = join(out, "sample.json");
+	await run(process.execPath, [CLI, "fx-01-", "--sample", "1", "--seed", "1", "--export", file, "--runs", runs, "--set", setPath, "--out", out]);
+	const sample = JSON.parse(await readFile(file, "utf8"));
+	const [entry] = sample.entries;
+	for (const fact of entry.facts) fact.supported = true;
+	await writeFile(join(out, "reference.json"), JSON.stringify(sample));
+	await writeFile(join(out, "one.jsonl"), `${JSON.stringify({ answerKey: entry.sampleId, facts: entry.facts.map(({ id }) => ({ id, supported: true })), forbidden: [], language: "en" })}\n`);
+	const { stdout } = await run(process.execPath, [CLI, "--agreement", join(out, "one.jsonl"), join(out, "reference.json")]);
+	const result = JSON.parse(stdout);
+	assert.equal(result.answers, 1);
+	assert.equal(result.missingFromJudge, 0);
 });

@@ -10,7 +10,7 @@ import { createCache } from "./lib/grade/cache.mjs";
 import { DEFAULT_JUDGE_MODEL, DEFAULT_JUDGE_URL, createNanJudge, requireApiKey } from "./lib/grade/judge.mjs";
 import { buildKeyIndex, loadQuestionSet } from "./lib/grade/keys.mjs";
 import { PROMPT_VERSION } from "./lib/grade/prompt.mjs";
-import { collectAnswers, forecast, gradeAnswers, summarize } from "./lib/grade/run.mjs";
+import { DEFAULT_ABORT_AFTER, collectAnswers, forecast, gradeAnswers, summarize } from "./lib/grade/run.mjs";
 import { computeAgreement, sampleBlind } from "./lib/grade/sample.mjs";
 
 const DEFAULT_SET = fileURLToPath(new URL("./questions/gentle-shell-cc36bd8d.set.json", import.meta.url));
@@ -30,7 +30,8 @@ Options:
   --no-json-mode        Do not send response_format json_object
   --concurrency <n>     Judge calls in flight (default 2)
   --timeout-ms <ms>     Per-request timeout (default 120000)
-  --max-retries <n>     Retries on 429, 5xx, network errors and timeouts (default 4)
+  --max-retries <n>     Retries on 429, 5xx, network errors, timeouts and broken bodies (default 4)
+  --abort-after <n>     Stop the batch after n consecutive answers fail every retry (default ${DEFAULT_ABORT_AFTER})
   -h, --help            Show this help
 
 The API key is read only from NAN_API_KEY.`;
@@ -41,13 +42,24 @@ const int = (value, name, min = 0) => {
 	return n;
 };
 
+/** A JSON document (array, or object with `entries`) or JSONL records; a one-line JSONL file is one record. */
 async function readResults(path) {
 	const text = await readFile(path, "utf8");
+	let data;
 	try {
-		return JSON.parse(text);
+		data = JSON.parse(text);
 	} catch {
 		return text.split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line));
 	}
+	return Array.isArray(data) || Array.isArray(data?.entries) ? data : [data];
+}
+
+function skippedRunLines({ skippedRuns, misaligned }) {
+	return [
+		`skipped runs: ${skippedRuns.length + misaligned.length} (${skippedRuns.length} not completed, ${misaligned.length} misaligned)`,
+		...skippedRuns.map((r) => `  ${r.runId}: status ${r.status}`),
+		...misaligned.map((r) => `  ${r.runId}: turn ${r.turnIndex} (${r.turnId}) prompt does not match the key`),
+	];
 }
 
 function forecastLines(result) {
@@ -67,7 +79,8 @@ function summaryMarkdown(summary) {
 		"|---|---|---|---|---|---|---|---|---|---|---|---|",
 		...rows,
 		"",
-		"Score: supported key facts / total key facts per answer (empty answers score 0). Fully correct: every fact supported and no forbidden claim.",
+		"Score: supported key facts / total key facts per answer (empty answers score 0). Graded: answers with a judge verdict (empty answers are counted under Empty, not Graded). Fully correct: every fact supported and no forbidden claim.",
+		...(summary.skippedRuns.length || summary.misaligned.length ? ["", ...skippedRunLines(summary)] : []),
 		"",
 	].join("\n");
 }
@@ -87,6 +100,7 @@ async function main(argv) {
 			concurrency: { type: "string", default: "2" },
 			"timeout-ms": { type: "string", default: "120000" },
 			"max-retries": { type: "string", default: "4" },
+		"abort-after": { type: "string", default: String(DEFAULT_ABORT_AFTER) },
 			"dry-run": { type: "boolean", default: false },
 			sample: { type: "string" },
 			seed: { type: "string", default: "5139" },
@@ -108,7 +122,9 @@ async function main(argv) {
 
 	const selectors = positionals.length ? positionals : ["*"];
 	const keyIndex = buildKeyIndex(await loadQuestionSet(values.set));
-	const { answers, unmapped } = await collectAnswers({ runsRoot: values.runs, selectors, keyIndex });
+	const collected = await collectAnswers({ runsRoot: values.runs, selectors, keyIndex });
+	const { answers, unmapped, misaligned, skippedRuns } = collected;
+	if (misaligned.length || skippedRuns.length) process.stderr.write(`grade: ${skippedRunLines(collected).join("\n")}\n`);
 	if (answers.length === 0) throw new Error(`no gradable answers for ${selectors.join(" ")} under ${values.runs}`);
 	if (unmapped.length) process.stderr.write(`grade: ${unmapped.length} turns have no key in the question set and are not graded\n`);
 
@@ -124,7 +140,7 @@ async function main(argv) {
 	const cache = createCache(join(values.out, "cache"));
 	const plan = await forecast(answers, { judgeModel: values.judge, cache });
 	if (values["dry-run"]) {
-		process.stdout.write(`judge ${values.judge}, prompt ${PROMPT_VERSION}\n${forecastLines(plan).join("\n")}\n`);
+		process.stdout.write(`judge ${values.judge}, prompt ${PROMPT_VERSION}\n${forecastLines(plan).join("\n")}\n${skippedRunLines(collected).join("\n")}\n`);
 		process.stdout.write("Token estimates: prompt = chars/4 of the judge messages; output = visible JSON only, reasoning tokens not included.\n");
 		process.stdout.write("dry run: no judge call was made\n");
 		return 0;
@@ -144,25 +160,25 @@ async function main(argv) {
 		judgeModel: values.judge,
 		cache,
 		concurrency: int(values.concurrency, "--concurrency", 1),
+		abortAfter: int(values["abort-after"], "--abort-after", 1),
 		onProgress: (done, total) => {
 			if (done % 25 === 0 || done === total) process.stderr.write(`grade: ${done}/${total}\n`);
 		},
 	});
 	const usage = { promptTokens: 0, completionTokens: 0, calls: 0 };
 	for (const r of records) for (const k of Object.keys(usage)) usage[k] += r.usage[k];
-	const summary = { judgeModel: values.judge, promptVersion: PROMPT_VERSION, selectors, answers: records.length, usage, unmapped, groups: summarize(records) };
+	const summary = { judgeModel: values.judge, promptVersion: PROMPT_VERSION, selectors, answers: records.length, usage, unmapped, skippedRuns, misaligned, groups: summarize(records) };
 	await mkdir(values.out, { recursive: true });
 	await writeFile(join(values.out, "grades.jsonl"), records.map((r) => JSON.stringify(r)).join("\n") + "\n");
 	await writeFile(join(values.out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
 	await writeFile(join(values.out, "summary.md"), summaryMarkdown(summary));
+	const count = (source) => records.filter((r) => r.judge.source === source && !r.error).length;
 	const errors = records.filter((r) => r.error).length;
-	const judged = records.filter((r) => !r.skipped && !r.judge.cached && !r.error).length;
-	const cached = records.filter((r) => r.judge.cached).length;
-	const empty = records.filter((r) => r.skipped).length;
-	process.stdout.write(`graded ${records.length} answers (${judged} judged, ${cached} cached, ${empty} empty, ${errors} errors); judge usage ${usage.calls} calls, prompt ${usage.promptTokens}, completion ${usage.completionTokens}\n`);
+	process.stdout.write(`${records.length} answers: ${count("judge")} judged, ${count("cache")} cached, ${count("dedupe")} deduplicated, ${count("skipped")} empty, ${errors} errors; judge usage this run ${usage.calls} calls, prompt ${usage.promptTokens}, completion ${usage.completionTokens}\n`);
+	if (misaligned.length || skippedRuns.length) process.stdout.write(`${skippedRunLines(collected).join("\n")}\n`);
 	process.stdout.write(summaryMarkdown(summary));
 	process.stdout.write(`wrote ${join(values.out, "grades.jsonl")}, summary.json and summary.md\n`);
-	return errors ? 2 : 0;
+	return errors || misaligned.length ? 2 : 0;
 }
 
 main(process.argv.slice(2)).then(
