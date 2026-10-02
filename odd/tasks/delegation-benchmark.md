@@ -235,6 +235,9 @@ Most valuable axes not covered by the original study: other model families (chil
   - Cross-model reading (short pilot, 1 repetition): `shipped` delegated in 0/12 (glm5.3-flash), 1/12 (deepseek-v4-flash), 1/12 (qwen3.8-flash) sessions while exceeding its budget in 9-14 of 24 turns; `old-rules` delegated more on deepseek (3/12) and qwen (6/12). Forced delegation versus inline on short questions: 1.03x, 1.60x, 1.85x.
   - Reading: deepseek-v4-flash also mostly ignores the evidence budget (`shipped` over budget in 12/24 turns, 1 delegation); it delegated more under the old file-count rules (3 sessions). Forced delegation costs more than on glm5.3-flash (1.60x vs 1.03x median) while still shrinking the parent (26.8k vs 37.1k). Single repetition: treat differences among the non-delegating arms as variance.
 - [ ] T7 Report and post results on #5139.
+  - [ ] T7.1 Report tooling in the repo: move the `.bench/analysis` scripts (`pilot-report`, `long-report`, adherence and language checks) into tested modules with one CLI that writes per-batch JSON and Markdown tables. Route: delegated direct (writer trigger).
+  - [ ] T7.2 Answer grader: blind key-fact grading of every parent answer against `questions/gentle-shell-cc36bd8d.set.json` (facts supported, forbidden claims, reply language) with a pluggable judge; default judge is a NaN model that was not benchmarked (candidate `minimax-h3`), result cache, bounded concurrency and retry. Offline tests with a fake judge. Live judging needs a separate user authorization with a quota forecast. Route: delegated direct, same writer as T7.1 (separate commit).
+  - [ ] T7.3 Calibration and grading run (after authorization): grade all batches, check judge agreement on a blind sample graded independently, then the Spanish report draft for the user, translated to English only for publishing on #5139.
 
 ## Next step
 
