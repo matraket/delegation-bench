@@ -7,11 +7,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createCache } from "./lib/grade/cache.mjs";
+import { defaultConcurrency, parseJudgeSpec } from "./lib/grade/backends.mjs";
 import { DEFAULT_JUDGE_MODEL, DEFAULT_JUDGE_URL, createNanJudge, requireApiKey } from "./lib/grade/judge.mjs";
+import { createPiJudge } from "./lib/grade/pi-judge.mjs";
 import { buildKeyIndex, loadQuestionSet } from "./lib/grade/keys.mjs";
 import { PROMPT_VERSION } from "./lib/grade/prompt.mjs";
 import { DEFAULT_ABORT_AFTER, collectAnswers, forecast, gradeAnswers, summarize } from "./lib/grade/run.mjs";
-import { computeAgreement, sampleBlind } from "./lib/grade/sample.mjs";
+import { computeAgreement, sampleBlind, sampleJudgments, sampleToAnswers } from "./lib/grade/sample.mjs";
 
 const DEFAULT_SET = fileURLToPath(new URL("./questions/gentle-shell-cc36bd8d.set.json", import.meta.url));
 
@@ -19,22 +21,24 @@ const USAGE = `Usage:
   grade.mjs [<run-id-prefix|glob>...] [options]          grade answers (all runs when no selector)
   grade.mjs [<selector>...] --dry-run                    counts and judge token forecast, no API call
   grade.mjs [<selector>...] --sample N --seed S --export <file>   blind calibration sample, no API call
+  grade.mjs --judge-sample <sample.json> [--export <file>] [--dry-run]   judge a blind sample file
   grade.mjs --agreement <judge-results> <reference-results>      judge vs reference agreement
 
 Options:
   --runs <dir>          Runs root (default .bench/runs)
   --set <file>          Question set with answer keys (default questions/gentle-shell-cc36bd8d.set.json)
   --out <dir>           Output directory: grades.jsonl, summary.json, summary.md, cache/ (default .bench/grading)
-  --judge <model>       Judge model (default ${DEFAULT_JUDGE_MODEL})
-  --judge-url <url>     Chat completions endpoint (default ${DEFAULT_JUDGE_URL})
-  --no-json-mode        Do not send response_format json_object
-  --concurrency <n>     Judge calls in flight (default 2)
-  --timeout-ms <ms>     Per-request timeout (default 120000)
-  --max-retries <n>     Retries on 429, 5xx, network errors, timeouts and broken bodies (default 4)
+  --judge <spec>        nan/<model> (HTTP) or pi/<provider>/<model> (plain pi) (default ${DEFAULT_JUDGE_MODEL})
+  --judge-url <url>     Chat completions endpoint of the nan backend (default ${DEFAULT_JUDGE_URL})
+  --no-json-mode        nan: do not send response_format json_object; pi: text output (usage unavailable)
+  --concurrency <n>     Judge calls in flight (default 2 for nan, 1 for pi)
+  --timeout-ms <ms>     Per-call timeout; a pi process is killed when it expires (default 120000)
+  --max-retries <n>     Retries on rate limits, 5xx, network errors, timeouts and broken replies (default 4)
   --abort-after <n>     Stop the batch after n consecutive answers fail every retry (default ${DEFAULT_ABORT_AFTER})
   -h, --help            Show this help
 
-The API key is read only from NAN_API_KEY.`;
+The nan backend reads its API key only from NAN_API_KEY; the pi backend uses pi's own login
+and does not need NAN_API_KEY.`;
 
 const int = (value, name, min = 0) => {
 	const n = Number(value);
@@ -68,6 +72,30 @@ function forecastLines(result) {
 	return [...result.batches.map((b) => line(b, b.batch)), line(result.total, "TOTAL")];
 }
 
+function sumUsage(records) {
+	const usage = { promptTokens: 0, completionTokens: 0, calls: 0, unreportedCalls: 0 };
+	for (const r of records) for (const k of Object.keys(usage)) usage[k] += r.usage[k] ?? 0;
+	return usage;
+}
+
+const usageLine = (usage) => `judge usage this run ${usage.calls} calls, prompt ${usage.promptTokens}, completion ${usage.completionTokens}${usage.unreportedCalls ? `; usage unavailable for ${usage.unreportedCalls} calls` : ""}`;
+
+/** The judge for a parsed --judge spec; the nan backend needs NAN_API_KEY only when something is left to judge. */
+function createJudge(judgeSpec, values, toJudge) {
+	const common = {
+		timeoutMs: int(values["timeout-ms"], "--timeout-ms", 1),
+		maxRetries: int(values["max-retries"], "--max-retries"),
+	};
+	if (judgeSpec.backend === "pi") return createPiJudge({ model: judgeSpec.model, jsonMode: values["json-mode"], ...common });
+	return createNanJudge({
+		model: judgeSpec.model,
+		apiKey: toJudge > 0 ? requireApiKey(process.env) : null,
+		url: values["judge-url"],
+		jsonMode: values["json-mode"],
+		...common,
+	});
+}
+
 function summaryMarkdown(summary) {
 	const pct = (v) => (v === null ? "-" : `${Math.round(v * 100)}%`);
 	const num = (v) => (v === null ? "-" : v.toFixed(2));
@@ -97,7 +125,7 @@ async function main(argv) {
 			judge: { type: "string", default: DEFAULT_JUDGE_MODEL },
 			"judge-url": { type: "string", default: DEFAULT_JUDGE_URL },
 			"json-mode": { type: "boolean", default: true },
-			concurrency: { type: "string", default: "2" },
+			concurrency: { type: "string" },
 			"timeout-ms": { type: "string", default: "120000" },
 			"max-retries": { type: "string", default: "4" },
 		"abort-after": { type: "string", default: String(DEFAULT_ABORT_AFTER) },
@@ -106,6 +134,7 @@ async function main(argv) {
 			seed: { type: "string", default: "5139" },
 			export: { type: "string" },
 			agreement: { type: "boolean", default: false },
+			"judge-sample": { type: "string" },
 			help: { type: "boolean", short: "h", default: false },
 		},
 	});
@@ -118,6 +147,40 @@ async function main(argv) {
 		const result = computeAgreement(await readResults(positionals[0]), await readResults(positionals[1]));
 		process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 		return 0;
+	}
+
+	const judgeSpec = parseJudgeSpec(values.judge);
+	const concurrency = values.concurrency === undefined ? defaultConcurrency(judgeSpec.backend) : int(values.concurrency, "--concurrency", 1);
+	const gradeOptions = (judge) => ({
+		judge,
+		judgeModel: values.judge,
+		concurrency,
+		abortAfter: int(values["abort-after"], "--abort-after", 1),
+		onProgress: (done, total) => {
+			if (done % 25 === 0 || done === total) process.stderr.write(`grade: ${done}/${total}\n`);
+		},
+	});
+	const judgeHeader = `judge ${values.judge} (${judgeSpec.backend} backend), prompt ${PROMPT_VERSION}`;
+
+	if (values["judge-sample"] !== undefined) {
+		const sample = JSON.parse(await readFile(values["judge-sample"], "utf8"));
+		const sampleAnswers = sampleToAnswers(sample);
+		const cache = createCache(join(values.out, "cache"));
+		const plan = await forecast(sampleAnswers, { judgeModel: values.judge, cache });
+		if (values["dry-run"]) {
+			process.stdout.write(`${judgeHeader}, sample ${values["judge-sample"]} (${sampleAnswers.length} entries)\n${forecastLines(plan).join("\n")}\ndry run: no judge call was made\n`);
+			return 0;
+		}
+		const judge = createJudge(judgeSpec, values, plan.total.toJudge);
+		const records = await gradeAnswers(sampleAnswers, { ...gradeOptions(judge), cache });
+		const results = sampleJudgments(sample, records, { judgeModel: values.judge, promptVersion: PROMPT_VERSION });
+		const target = values.export ?? join(values.out, "sample-judgments", `${values.judge.replace(/[^A-Za-z0-9._-]/g, "_")}.json`);
+		await mkdir(dirname(target), { recursive: true });
+		await writeFile(target, `${JSON.stringify(results, null, 2)}\n`);
+		const errors = records.filter((r) => r.error).length;
+		const count = (source) => records.filter((r) => r.judge.source === source && !r.error).length;
+		process.stdout.write(`${records.length} sample answers: ${count("judge") + count("dedupe")} judged, ${count("cache")} cached, ${errors} errors; ${usageLine(sumUsage(records))}\nwrote ${target}\n`);
+		return errors ? 2 : 0;
 	}
 
 	const selectors = positionals.length ? positionals : ["*"];
@@ -140,33 +203,15 @@ async function main(argv) {
 	const cache = createCache(join(values.out, "cache"));
 	const plan = await forecast(answers, { judgeModel: values.judge, cache });
 	if (values["dry-run"]) {
-		process.stdout.write(`judge ${values.judge}, prompt ${PROMPT_VERSION}\n${forecastLines(plan).join("\n")}\n${skippedRunLines(collected).join("\n")}\n`);
+		process.stdout.write(`${judgeHeader}\n${forecastLines(plan).join("\n")}\n${skippedRunLines(collected).join("\n")}\n`);
 		process.stdout.write("Token estimates: prompt = chars/4 of the judge messages; output = visible JSON only, reasoning tokens not included.\n");
 		process.stdout.write("dry run: no judge call was made\n");
 		return 0;
 	}
 
-	const apiKey = plan.total.toJudge > 0 ? requireApiKey(process.env) : null;
-	const judge = createNanJudge({
-		model: values.judge,
-		apiKey,
-		url: values["judge-url"],
-		jsonMode: values["json-mode"],
-		timeoutMs: int(values["timeout-ms"], "--timeout-ms", 1),
-		maxRetries: int(values["max-retries"], "--max-retries"),
-	});
-	const records = await gradeAnswers(answers, {
-		judge,
-		judgeModel: values.judge,
-		cache,
-		concurrency: int(values.concurrency, "--concurrency", 1),
-		abortAfter: int(values["abort-after"], "--abort-after", 1),
-		onProgress: (done, total) => {
-			if (done % 25 === 0 || done === total) process.stderr.write(`grade: ${done}/${total}\n`);
-		},
-	});
-	const usage = { promptTokens: 0, completionTokens: 0, calls: 0 };
-	for (const r of records) for (const k of Object.keys(usage)) usage[k] += r.usage[k];
+	const judge = createJudge(judgeSpec, values, plan.total.toJudge);
+	const records = await gradeAnswers(answers, { ...gradeOptions(judge), cache });
+	const usage = sumUsage(records);
 	const summary = { judgeModel: values.judge, promptVersion: PROMPT_VERSION, selectors, answers: records.length, usage, unmapped, skippedRuns, misaligned, groups: summarize(records) };
 	await mkdir(values.out, { recursive: true });
 	await writeFile(join(values.out, "grades.jsonl"), records.map((r) => JSON.stringify(r)).join("\n") + "\n");
@@ -174,7 +219,7 @@ async function main(argv) {
 	await writeFile(join(values.out, "summary.md"), summaryMarkdown(summary));
 	const count = (source) => records.filter((r) => r.judge.source === source && !r.error).length;
 	const errors = records.filter((r) => r.error).length;
-	process.stdout.write(`${records.length} answers: ${count("judge")} judged, ${count("cache")} cached, ${count("dedupe")} deduplicated, ${count("skipped")} empty, ${errors} errors; judge usage this run ${usage.calls} calls, prompt ${usage.promptTokens}, completion ${usage.completionTokens}\n`);
+	process.stdout.write(`${records.length} answers: ${count("judge")} judged, ${count("cache")} cached, ${count("dedupe")} deduplicated, ${count("skipped")} empty, ${errors} errors; ${usageLine(usage)}\n`);
 	if (misaligned.length || skippedRuns.length) process.stdout.write(`${skippedRunLines(collected).join("\n")}\n`);
 	process.stdout.write(summaryMarkdown(summary));
 	process.stdout.write(`wrote ${join(values.out, "grades.jsonl")}, summary.json and summary.md\n`);

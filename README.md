@@ -360,7 +360,8 @@ key are reported and skipped.
 
 ```bash
 env -u NAN_API_KEY node grade.mjs --dry-run pilot-01- pilot-02- long-01- long-02-   # counts and forecast, no API call
-NAN_API_KEY=... node grade.mjs pilot-01- pilot-02- long-01- long-02-                # live judging
+NAN_API_KEY=... node grade.mjs pilot-01- pilot-02- long-01- long-02-                # live judging (nan backend)
+node grade.mjs --judge pi/openai-codex/gpt-6.1-sol pilot-01-                          # live judging through plain pi
 node grade.mjs --sample 30 --seed 5139 --export .bench/grading/calibration-sample.json
 node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
 ```
@@ -368,13 +369,37 @@ node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
 - Blind: the judge sees only the question prompt, the answer, the key facts
   and the forbidden claims, never the arm, model, run id or costs. Run
   metadata is joined after judging.
-- Judge: OpenAI-compatible chat completions at
-  `https://api.nan.builders/v1/chat/completions`, default model
-  `nan/mimo-v2.6-flash` (`--judge`), temperature 0, `response_format`
-  `json_object` (`--no-json-mode` to drop it). The key is read only from
-  `NAN_API_KEY` (never from auth files) and is never logged; live judging
-  without it fails before any call. Bounded concurrency (`--concurrency`,
-  default 2), per-request timeout (`--timeout-ms`, default 120 s), retries
+- Judge backends, selected by the `--judge` prefix (the full spec is the
+  judge model name in every record and in the cache key, so judges never
+  share cached judgments; any other prefix is refused):
+  - `nan/<model>` (default `nan/mimo-v2.6-flash`): OpenAI-compatible chat
+    completions at `https://api.nan.builders/v1/chat/completions`
+    (`--judge-url`), temperature 0, `response_format` `json_object`
+    (`--no-json-mode` to drop it). The key is read only from `NAN_API_KEY`
+    (never from auth files) and is never logged; live judging without it
+    fails before any call.
+  - `pi/<provider>/<model>[:thinking]` (for example
+    `pi/openai-codex/gpt-6.1-sol`, a ChatGPT subscription logged in to pi):
+    one isolated `pi` process per answer, spawned without a shell, stdin
+    closed, with the argument array
+    `pi -p --no-session --no-tools --no-extensions --no-skills --no-context-files --system-prompt <judge rules> --model <provider>/<model> --mode json -- <judge input>`.
+    No agent prefix, tools, extensions, skills, context files or sessions
+    are involved; the same system and user messages as the HTTP backend go
+    to `--system-prompt` and the prompt argument. The credential stays inside
+    pi: `NAN_API_KEY` is neither needed nor passed to it. The reply and the
+    token usage come from the last assistant `message_end` of pi's JSON event
+    stream (prompt = input + cache read + cache write, completion = output);
+    `--no-json-mode` uses plain text output, where usage is unavailable and
+    counted as `unreportedCalls`. When the timeout expires the pi process is
+    killed. Failures are classified from the exit code, pi's stderr or the
+    stream's error message into a short code: `timeout`, `network`,
+    `rate_limited`, `usage_limit` and `server` are retried like HTTP 429/5xx
+    and feed the circuit breaker; `auth`, `bad_model`, `pi_not_found` and
+    unknown failures (`failed`) are not retried. Only the code is recorded
+    (for example `pi judge failed: rate_limited (exit 1); gave up after 5
+    attempts`), never pi's stderr. Default concurrency 1.
+- Calls: bounded concurrency (`--concurrency`, default 2 for nan, 1 for
+  pi), per-call timeout (`--timeout-ms`, default 120 s), retries
   with exponential backoff on 429, 5xx, network errors and timeouts
   (`--max-retries`, default 4; `Retry-After` honored); a body read that
   times out and a truncated or invalid JSON body are retried too. Other HTTP
@@ -412,6 +437,30 @@ node grade.mjs --agreement .bench/grading/grades.jsonl <filled-sample.json>
   agreement (rate and Cohen's kappa), forbidden-claim and language agreement,
   score correlation (Pearson) and mean absolute score difference, with every
   disagreement listed.
+- `--judge-sample <sample.json>`: judge the entries of an exported blind
+  sample with the selected judge (no runs or question set needed) and write
+  the sample with the judge's verdicts filled in (one entry per `sampleId`
+  with `facts[].supported`, `forbidden[].present`, `language`, plus
+  `source` and a short `error`; schema
+  `delegation-bench.sample-judgments/v1`) to `--export <file>`, default
+  `<out>/sample-judgments/<judge spec with / as _>.json`. The result is valid
+  on either side of `--agreement`. It uses the same cache as full grading
+  (same key material), so a sample judged now is not paid for again when the
+  same judge grades every answer. `--dry-run` prints the entries to judge
+  and the token forecast without starting any judge.
+
+Comparing judges on the same blind answers before grading all 864:
+
+```bash
+node grade.mjs pilot-01- pilot-02- long-01- long-02- --sample 30 --seed 5139 --export .bench/grading/calibration-sample.json
+node grade.mjs --judge-sample .bench/grading/calibration-sample.json --judge pi/openai-codex/gpt-6.1-sol --dry-run
+node grade.mjs --judge-sample .bench/grading/calibration-sample.json --judge pi/openai-codex/gpt-6.1-sol --export .bench/grading/judge-gpt.json
+NAN_API_KEY=... node grade.mjs --judge-sample .bench/grading/calibration-sample.json --judge nan/mimo-v2.6-flash --export .bench/grading/judge-mimo.json
+# fill a copy of the sample independently (for example a Claude reference) as reference.json, then:
+node grade.mjs --agreement .bench/grading/judge-gpt.json .bench/grading/reference.json
+node grade.mjs --agreement .bench/grading/judge-mimo.json .bench/grading/reference.json
+node grade.mjs --agreement .bench/grading/judge-gpt.json .bench/grading/judge-mimo.json   # judge vs judge
+```
 
 Output in `--out` (default `.bench/grading`): `grades.jsonl` (one line per
 answer: verdicts, score, usage, then batch, run id, arm, model, replicate,

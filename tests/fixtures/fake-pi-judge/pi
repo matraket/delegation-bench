@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+// Fake `pi` for the judge backend tests. It never calls a model: it reads the
+// judge user message (the last argument) and answers with a JSON verdict for
+// every fact id (`- f1: ...`) and forbidden id (`- x1: ...`) it finds.
+// With `--mode json` it writes a pi JSON event stream (with usage); otherwise
+// it prints the reply text, like `pi -p`.
+// Environment:
+//   FAKE_PI_JUDGE_LOG=<file>        append one JSON line per call (argv, pid,
+//                                   stdin bytes, whether NAN_API_KEY was set)
+//                                   and one line when the call ends
+//   FAKE_PI_JUDGE_MODE=<mode>       ok (default) | hang | hang-once | rate-limit
+//                                   | usage-limit-json | auth | bad-model | invalid
+//   FAKE_PI_JUDGE_STATE=<file>      call counter for the *-once modes
+//   FAKE_PI_JUDGE_SUPPORTED=f1,f2   only these fact ids are supported (default all)
+//   FAKE_PI_JUDGE_DELAY_MS=<ms>     wait before replying
+// Failure messages carry the marker PI-SECRET-STDERR so tests can prove raw
+// stderr never reaches grader outputs.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+
+const argv = process.argv.slice(2);
+const env = process.env;
+const mode = env.FAKE_PI_JUDGE_MODE ?? "ok";
+const log = (record) => {
+	if (env.FAKE_PI_JUDGE_LOG) appendFileSync(env.FAKE_PI_JUDGE_LOG, `${JSON.stringify(record)}\n`);
+};
+
+let stdinBytes = null;
+try {
+	// Closed stdin reads as EOF at once; an open pipe would block here.
+	stdinBytes = readFileSync(0).length;
+} catch {
+	stdinBytes = -1;
+}
+log({ argv, pid: process.pid, start: Date.now(), stdinBytes, nanKeySet: Boolean(env.NAN_API_KEY) });
+
+let call = 1;
+if (env.FAKE_PI_JUDGE_STATE) {
+	call = (existsSync(env.FAKE_PI_JUDGE_STATE) ? Number(readFileSync(env.FAKE_PI_JUDGE_STATE, "utf8")) : 0) + 1;
+	writeFileSync(env.FAKE_PI_JUDGE_STATE, String(call));
+}
+
+const json = argv.includes("--mode") && argv[argv.indexOf("--mode") + 1] === "json";
+const emit = (record) => process.stdout.write(`${JSON.stringify(record)}\n`);
+const fail = (text) => {
+	process.stderr.write(`${text} PI-SECRET-STDERR\n`);
+	process.exit(1);
+};
+const finish = () => log({ end: process.pid, at: Date.now() });
+
+function assistantEnd(message) {
+	emit({ type: "session", version: 3, id: "fake", timestamp: new Date().toISOString(), cwd: process.cwd() });
+	emit({ type: "agent_start" });
+	emit({ type: "turn_start" });
+	emit({ type: "message_start", message: { role: "assistant", content: [], stopReason: "pending" } });
+	emit({ type: "message_end", message: { role: "assistant", api: "fake", provider: "fake", model: "fake", timestamp: Date.now(), ...message } });
+	emit({ type: "agent_end", messages: [], willRetry: false });
+	emit({ type: "agent_settled" });
+}
+
+function reply() {
+	const user = argv[argv.length - 1];
+	const only = env.FAKE_PI_JUDGE_SUPPORTED ? new Set(env.FAKE_PI_JUDGE_SUPPORTED.split(",")) : null;
+	const facts = [...user.matchAll(/^- (f\d+):/gm)].map((m) => ({ id: m[1], supported: only ? only.has(m[1]) : true }));
+	const forbidden = [...user.matchAll(/^- (x\d+):/gm)].map((m) => ({ id: m[1], present: false }));
+	const text = mode === "invalid" ? "I think the answer is fine." : JSON.stringify({ facts, forbidden, language: "en" });
+	if (json) {
+		emit({ type: "message_update", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: text.slice(0, 5) } });
+		assistantEnd({ content: [{ type: "text", text }], usage: { input: 120, output: 30, cacheRead: 10, cacheWrite: 0, totalTokens: 160 }, stopReason: "stop" });
+	} else {
+		process.stdout.write(`${text}\n`);
+	}
+	finish();
+}
+
+if (mode === "hang" || (mode === "hang-once" && call === 1)) {
+	setInterval(() => {}, 1000);
+} else if (mode === "rate-limit") {
+	fail("Error: 429 Too Many Requests: rate limit reached for requests");
+} else if (mode === "auth") {
+	fail("Error: No API key found for openai-codex. Use /login to sign in.");
+} else if (mode === "bad-model") {
+	fail("Error: Model \"openai-codex/nope\" not found.");
+} else if (mode === "usage-limit-json") {
+	if (!json) fail("Error: You have hit your usage limit.");
+	assistantEnd({ content: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: "error", errorMessage: "You have hit your usage limit. PI-SECRET-STDERR" });
+	finish();
+} else {
+	setTimeout(reply, Number(env.FAKE_PI_JUDGE_DELAY_MS ?? 0));
+}

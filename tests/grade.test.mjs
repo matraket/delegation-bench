@@ -154,7 +154,7 @@ test("gradeAnswers judges each answer once, joins run metadata after judging, an
 	assert.equal(calls.length, 6);
 	assert.deepEqual(records.map((r) => r.judge.source).sort(), ["dedupe", "judge", "judge", "judge", "judge", "judge", "judge", "skipped"]);
 	const dedupe = records.find((r) => r.judge.source === "dedupe");
-	assert.deepEqual(dedupe.usage, { promptTokens: 0, completionTokens: 0, calls: 0 });
+	assert.deepEqual(dedupe.usage, { promptTokens: 0, completionTokens: 0, calls: 0, unreportedCalls: 0 });
 	assert.equal(dedupe.error, null);
 	const parallel = [];
 	const parallelRecords = await gradeAnswers(answers, { judge: perfectJudge(parallel), judgeModel: "nan/mimo-v2.6-flash", cache: createCache(join(root, "cache-parallel")), concurrency: 8 });
@@ -167,7 +167,7 @@ test("gradeAnswers judges each answer once, joins run metadata after judging, an
 	assert.equal(rec.model, "nan/test-model");
 	assert.equal(rec.score, 1);
 	assert.equal(rec.fullyCorrect, true);
-	assert.deepEqual(rec.usage, { promptTokens: 100, completionTokens: 20, calls: 1 });
+	assert.deepEqual(rec.usage, { promptTokens: 100, completionTokens: 20, calls: 1, unreportedCalls: 0 });
 	assert.equal(rec.judge.source, "judge");
 	const empty = records.find((r) => r.answerChars === 0);
 	assert.equal(empty.skipped, "empty-answer");
@@ -197,7 +197,7 @@ test("an invalid judge response is retried once, then recorded as an error witho
 	assert.equal(calls, 4, "two answers, two attempts each");
 	assert.ok(records.every((r) => /invalid judge response/.test(r.error)));
 	assert.ok(records.every((r) => r.score === null));
-	assert.deepEqual(records[0].usage, { promptTokens: 20, completionTokens: 10, calls: 2 });
+	assert.deepEqual(records[0].usage, { promptTokens: 20, completionTokens: 10, calls: 2, unreportedCalls: 0 });
 });
 
 test("mapLimit never runs more than the limit at once", async () => {
