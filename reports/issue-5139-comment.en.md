@@ -1,6 +1,11 @@
 Following up on my earlier comment: I ran a wider sample on NaN Builders models against the rules shipped in Gentleman-Programming/gentle-shell#1590. I'm sharing what I got, but I want to be upfront that my benchmark or my method may well be wrong in ways I haven't spotted, so please take this as something to check rather than as evidence. The original harness wasn't available, so I built my own following your description; any difference with your numbers could come from my setup rather than from the models.
 
-Everything is public so it can be reviewed or corrected: https://github.com/matraket/delegation-bench ([method](https://github.com/matraket/delegation-bench/blob/main/docs/METHODOLOGY.md), [how to reproduce](https://github.com/matraket/delegation-bench/blob/main/docs/REPRODUCE.md), [results](https://github.com/matraket/delegation-bench/blob/main/docs/RESULTS.md)).
+That is why I'm sharing the repository: so the whole process can be audited, not just the numbers. https://github.com/matraket/delegation-bench contains:
+
+- the [method](https://github.com/matraket/delegation-bench/blob/main/docs/METHODOLOGY.md) and a [guide to reproduce it](https://github.com/matraket/delegation-bench/blob/main/docs/REPRODUCE.md);
+- the harness code, the exact rule texts of each arm, the question set with its keys, and the judge prompt;
+- the [aggregated results](https://github.com/matraket/delegation-bench/tree/main/results), including the grade of every answer, the calibration sample and the provider usage control;
+- the [research log](https://github.com/matraket/delegation-bench/blob/main/odd/tasks/delegation-benchmark.md) with every step, decision and check in order, including the mistakes I found and corrected along the way.
 
 **What I did**
 
@@ -56,4 +61,4 @@ On the short questions, forced delegation cost 1.03x, 1.60x and 1.85x of inline 
 - Forced delegation took 1.5x to 2.3x the inline wall time.
 - One long forced-delegation session (deepseek) answered 22 of 24 turns in Spanish although English was requested; no other session did.
 
-Any feedback on the method is very welcome. I'm happy to fix what's wrong and rerun, or to try other models or variants if that helps.
+If you or anyone else audits the repository and finds a flaw, I'm happy to fix it and rerun, or to try other models or variants if that helps.
