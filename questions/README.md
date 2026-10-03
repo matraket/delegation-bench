@@ -115,16 +115,29 @@ node run-bench.mjs --dry-run --arms shipped --questions questions/generated/long
 node run-bench.mjs --dry-run --arms shipped --questions questions/generated/short/m1-resume-hint.json
 ```
 
-## Grading (later task)
+## Grading
 
-Grading is not implemented yet. The plan, following the study's key-fact
-grader:
+`grade.mjs` grades every answer blind against the `key` of its turn.
+Method and calibration: [docs/METHODOLOGY.md](../docs/METHODOLOGY.md#9-answer-grading);
+options: [docs/TOOLS.md](../docs/TOOLS.md#answer-grader); results:
+[results/grading/](../results/grading/summary.md).
 
-- Each answer is graded blind (the grader does not see the arm) against the
-  `key` of its turn.
-- A fact counts as covered when the answer states it, in any wording.
-  Coverage is the share of facts covered.
-- A forbidden claim stated in the answer counts against it, even when the
-  facts are covered.
-- The reply language is recorded separately, because every prompt asks for
-  English.
+- The judge sees only the question prompt, the answer, the key facts and the
+  forbidden claims, never the arm, model, run id or costs.
+- A fact is supported when the answer makes the same claim in any wording,
+  including the specific values, names or conditions in the fact; a vaguer or
+  hedged statement is not supported.
+- A forbidden claim counts when the answer states or clearly implies it. It
+  does not lower the score but makes the answer not fully correct.
+- Score = supported facts / total facts of the turn. Fully correct = every
+  fact supported and no forbidden claim. Empty answers score 0 and are not
+  sent to the judge.
+- The reply language (`en`, `es`, `other`) is recorded separately,
+  because every prompt asks for English.
+- Turn ids map to keys as `<question-id>` and `<question-id>-followup`, and
+  each answer's sent prompt must equal its key's prompt, so no answer is
+  graded against the wrong key.
+
+The published grades used the judge `pi/openai-codex/gpt-6.1-sol` with prompt
+version `grade-v1`, calibrated on a 30-answer blind sample against an
+independent reference (156 of 156 fact verdicts agreed).
