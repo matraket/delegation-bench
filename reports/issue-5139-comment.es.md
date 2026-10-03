@@ -4,10 +4,10 @@ Lo más útil, en una línea: con estos modelos la regla del presupuesto de evid
 
 **Montaje**
 
-- Gentle Shell `cc36bd8d`, un home aislado por sesión y una copia del paquete por variante (`--package-root`).
+- Gentle Shell (paquetes `1162ce90` y `2549f17a`, con las reglas idénticas a #1590; las preguntas, fijadas en `cc36bd8d`), un home aislado por sesión y una copia del paquete por variante (`--package-root`).
 - 4 variantes: reglas anteriores a #1590, inline forzado, regla actual (presupuesto de evidencia) y delegación forzada.
 - 12 preguntas sobre Gentle Shell fijado en un commit (4 pequeñas, 4 medianas, 4 grandes), cada una con su pregunta de detalle y una clave de hechos verificados con `path:line`.
-- Sesiones cortas (2 turnos) con glm5.3-flash, deepseek-v4-flash y qwen3.8-flash; sesiones largas (24 turnos, 3 repeticiones) con glm5.3-flash y deepseek-v4-flash. 156 sesiones en total, todas completas.
+- Sesiones cortas (2 turnos) con glm5.3-flash, deepseek-v4-flash y qwen3.8-flash; sesiones largas (24 turnos, 3 repeticiones) con glm5.3-flash y deepseek-v4-flash. 168 sesiones en total, todas completas.
 - El costo sale de los JSONL de las sesiones y coincide exactamente con lo que factura NaN. NaN cuenta las lecturas de caché enteras (lo medí), así que doy dos columnas: pesos de NaN (todo a 1) y tus pesos de API (caché 0,1).
 
 **1. La regla casi nunca se cumple**
