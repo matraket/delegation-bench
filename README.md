@@ -164,6 +164,11 @@ RPC session per arm x model x repetition, each in a fresh isolated agent home,
 followed by the analyzer over the parent session and its children.
 
 ```bash
+# Machine-specific inputs: flags, or these environment variables.
+export DELEGATION_BENCH_SOURCE=<gentle-shell package dir>          # --source
+export DELEGATION_BENCH_DONOR=<package dir at commit 289cee5b>     # --donor (old-rules only)
+export DELEGATION_BENCH_TEMPLATE_HOME=<agent home template>        # --template-home
+
 # Build every arm and home and print the exact commands; no model session.
 node run-bench.mjs --dry-run --questions questions.json --arms all
 
@@ -174,7 +179,10 @@ node run-bench.mjs --questions questions.json --arms shipped,delegate --repetiti
 `node run-bench.mjs --help` lists every option. A run spec (`--spec file.json`)
 takes the same keys in camelCase (`arms`, `models`, `repetitions`,
 `contextFixture`, `background`, `thinking`, `turnDeadlineSec`, `questions`,
-`source`, `donor`, `templateHome`, `workDir`, ...); flags override it.
+`source`, `donor`, `templateHome`, `workDir`, ...); flags override it. The
+three paths have no default: each comes from its flag, the run spec, or its
+environment variable, in that order, and a missing one stops the run with a
+message naming both (the donor is required only when `old-rules` is selected).
 
 ### Question file
 
@@ -236,7 +244,7 @@ numbers, removed files, bytes); the run manifest records `armInfo.key`.
 ### Homes
 
 Per run: `.bench/runs/<run-id>/<arm>/<model>/rep-<n>/home`, built from the
-template home (default `~/.gentle-shell/agent`). Only `settings.json`,
+template home (`--template-home` or `DELEGATION_BENCH_TEMPLATE_HOME`). Only `settings.json`,
 `npm/package.json`, the kept npm packages (default `npm:@gtrabanco/pi-nan-provider`)
 and `agents/*.md` are read; credentials are never read or copied.
 `settings.json` is written from scratch with only `packages` (the kept ones),

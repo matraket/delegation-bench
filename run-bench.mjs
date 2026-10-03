@@ -5,7 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { ARM_NAMES } from "./lib/runner/arms.mjs";
-import { DEFAULTS, resolveSpec } from "./lib/runner/plan.mjs";
+import { DEFAULTS, PATH_ENV, resolveSpec } from "./lib/runner/plan.mjs";
 import { runBench } from "./lib/runner/run.mjs";
 
 const USAGE = `Usage: run-bench.mjs --questions <file.json> [options]
@@ -21,16 +21,19 @@ Options:
   --thinking <level>        Thinking level for the parent and every agent (default ${DEFAULTS.thinking})
   --turn-deadline <sec>     Per-turn deadline in seconds (default ${DEFAULTS.turnDeadlineSec})
   --cwd <dir>               Session working directory (default: the question file's cwd)
-  --source <dir>            Gentle Shell release to copy (default ${DEFAULTS.source})
-  --donor <dir>             Pre-#1590 release for old-rules (default ${DEFAULTS.donor})
+  --source <dir>            Gentle Shell package directory to copy (required; env ${PATH_ENV.source})
+  --donor <dir>             Package directory at commit 289cee5b, before gentle-shell#1590
+                            (required by old-rules only; env ${PATH_ENV.donor})
   --old-rules-map <file>    Line map for old-rules (default arms/old-rules.json)
-  --template-home <dir>     Agent home template (default ${DEFAULTS.templateHome})
+  --template-home <dir>     Agent home template with the provider package under npm/
+                            (required; env ${PATH_ENV.templateHome})
   --work-dir <dir>          Work directory for arms and runs (default ${DEFAULTS.workDir})
   --launcher <file>         Launcher script (default <source>/bin/gentle-shell.mjs)
   --run-id <id>             Run id (default: UTC timestamp)
   --dry-run                 Build arms and homes and print the plan; start no model session
   -h, --help                Show this help
 
+Path precedence: flag, then the run spec, then the environment variable.
 A live run needs NAN_API_KEY in the environment; it is never read from auth.json.`;
 
 const SPEC_KEYS = {

@@ -5,7 +5,6 @@ import { lstat, mkdtemp, readdir, readFile, readlink, stat, symlink, writeFile }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARM_NAMES, SUBAGENT_TOOLS, applyLineMap, buildArm, loadOldRulesMap, replaceTriggerBlock } from "../lib/runner/arms.mjs";
-import { DEFAULTS } from "../lib/runner/plan.mjs";
 import { TEST_LINE_MAP, makeSource } from "./runner-helpers.mjs";
 
 async function build(name, extra = {}) {
@@ -88,7 +87,7 @@ test("node_modules is hardlinked (no .cache), symlinks are kept, package files a
 	assert.equal(JSON.parse(await readFile(join(arm.root, "bench-arm.json"), "utf8")).arm, "shipped");
 });
 
-test("a source given through a symlink (like the watch `current` link) is copied as a real tree", async () => {
+test("a source given through a symlink (like a `current` release link) is copied as a real tree", async () => {
 	const { source, donor, root } = await makeSource();
 	const link = join(root, "current");
 	await symlink(source, link);
@@ -150,9 +149,12 @@ test("unknown arms and drifted anchors fail loudly", async () => {
 	assert.throws(() => replaceTriggerBlock("no block here", "rule"), /trigger block/);
 });
 
-const { source: RELEASE, donor: DONOR } = DEFAULTS;
+// Real packages are optional: set DELEGATION_BENCH_SOURCE and DELEGATION_BENCH_DONOR to run this check.
+const RELEASE = process.env.DELEGATION_BENCH_SOURCE || null;
+const DONOR = process.env.DELEGATION_BENCH_DONOR || null;
+const realPackages = Boolean(RELEASE && DONOR && existsSync(join(RELEASE, "assets")) && existsSync(join(DONOR, "assets")));
 
-test("the real old-rules map turns the shipped orchestrator.md into the pre-#1590 one", { skip: !existsSync(join(RELEASE, "assets")) || !existsSync(join(DONOR, "assets")) }, async () => {
+test("the real old-rules map turns the shipped orchestrator.md into the pre-#1590 one", { skip: !realPackages && "set DELEGATION_BENCH_SOURCE and DELEGATION_BENCH_DONOR" }, async () => {
 	const map = await loadOldRulesMap();
 	for (const [file, entries] of Object.entries(map.files)) {
 		const shipped = await readFile(join(RELEASE, file), "utf8");
