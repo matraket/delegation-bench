@@ -1,0 +1,422 @@
+{
+  "judgeModel": "pi/openai-codex/gpt-6.1-sol",
+  "promptVersion": "grade-v1",
+  "selectors": [
+    "pilot-01-",
+    "pilot-02-",
+    "long-01-",
+    "long-02-"
+  ],
+  "answers": 864,
+  "usage": {
+    "promptTokens": 1477189,
+    "completionTokens": 103838,
+    "calls": 834,
+    "unreportedCalls": 0
+  },
+  "unmapped": [],
+  "skippedRuns": [],
+  "misaligned": [],
+  "groups": [
+    {
+      "batch": "pilot-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "inline",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 0.9444444444444444,
+      "meanScore": 0.8337632275132275,
+      "fullyCorrectShare": 0.5,
+      "forbiddenClaims": 1,
+      "answersWithForbidden": 1,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "old-rules",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8699239417989418,
+      "fullyCorrectShare": 0.625,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "delegate",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 0.775,
+      "meanScore": 0.7560019841269842,
+      "fullyCorrectShare": 0.4166666666666667,
+      "forbiddenClaims": 1,
+      "answersWithForbidden": 1,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "shipped",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 0.9375,
+      "meanScore": 0.8495205026455026,
+      "fullyCorrectShare": 0.5,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "inline",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9535052910052911,
+      "fullyCorrectShare": 0.7083333333333334,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "old-rules",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9265211640211642,
+      "fullyCorrectShare": 0.6666666666666666,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "delegate",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 0.9375,
+      "meanScore": 0.790625,
+      "fullyCorrectShare": 0.5,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "shipped",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9295304232804232,
+      "fullyCorrectShare": 0.5416666666666666,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "model": "nan/qwen3.8-flash",
+      "arm": "inline",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8441798941798943,
+      "fullyCorrectShare": 0.6666666666666666,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "model": "nan/qwen3.8-flash",
+      "arm": "old-rules",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9197420634920636,
+      "fullyCorrectShare": 0.6666666666666666,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "model": "nan/qwen3.8-flash",
+      "arm": "delegate",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.881630291005291,
+      "fullyCorrectShare": 0.5416666666666666,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "model": "nan/qwen3.8-flash",
+      "arm": "shipped",
+      "answers": 24,
+      "graded": 24,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8883763227513227,
+      "fullyCorrectShare": 0.7083333333333334,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 24,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "inline",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9117614638447971,
+      "fullyCorrectShare": 0.6111111111111112,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "old-rules",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8844797178130509,
+      "fullyCorrectShare": 0.5833333333333334,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "delegate",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 0.8571428571428571,
+      "meanScore": 0.7530037477954142,
+      "fullyCorrectShare": 0.4027777777777778,
+      "forbiddenClaims": 1,
+      "answersWithForbidden": 1,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-01",
+      "model": "nan/glm5.3-flash",
+      "arm": "shipped",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8655809082892414,
+      "fullyCorrectShare": 0.5277777777777778,
+      "forbiddenClaims": 1,
+      "answersWithForbidden": 1,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-02",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "inline",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.958691578483245,
+      "fullyCorrectShare": 0.7777777777777778,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-02",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "old-rules",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.932550705467372,
+      "fullyCorrectShare": 0.7361111111111112,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-02",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "delegate",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.8563602292768957,
+      "fullyCorrectShare": 0.5277777777777778,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 50,
+        "es": 22,
+        "other": 0,
+        "none": 0
+      }
+    },
+    {
+      "batch": "long-02",
+      "model": "nan/deepseek-v4-flash",
+      "arm": "shipped",
+      "answers": 72,
+      "graded": 72,
+      "errors": 0,
+      "emptyAnswers": 0,
+      "medianScore": 1,
+      "meanScore": 0.9296847442680775,
+      "fullyCorrectShare": 0.6805555555555556,
+      "forbiddenClaims": 0,
+      "answersWithForbidden": 0,
+      "language": {
+        "en": 72,
+        "es": 0,
+        "other": 0,
+        "none": 0
+      }
+    }
+  ]
+}

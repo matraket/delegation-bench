@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "batches": [
+    {
+      "batch": "pilot-01",
+      "sessions": 48,
+      "groups": [
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/glm5.3-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 12,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/glm5.3-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 36,
+          "arms": [
+            "delegate",
+            "inline",
+            "shipped"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "sessions": 48,
+      "groups": [
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/deepseek-v4-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 12,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/deepseek-v4-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 36,
+          "arms": [
+            "delegate",
+            "inline",
+            "shipped"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "sessions": 48,
+      "groups": [
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/qwen3.8-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 9,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/qwen3.8-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 33,
+          "arms": [
+            "delegate",
+            "inline",
+            "shipped"
+          ]
+        },
+        {
+          "packageCommit": "2549f17a3e5be11c03d311aed16423bb37821cea",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/qwen3.8-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 3,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "2549f17a3e5be11c03d311aed16423bb37821cea",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/qwen3.8-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 3,
+          "arms": [
+            "shipped"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "long-01",
+      "sessions": 12,
+      "groups": [
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/glm5.3-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 3,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "1162ce9092ba67d342ba83f646b3cb3a7f1c46f7",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/glm5.3-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 9,
+          "arms": [
+            "delegate",
+            "inline",
+            "shipped"
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "long-02",
+      "sessions": 12,
+      "groups": [
+        {
+          "packageCommit": "2549f17a3e5be11c03d311aed16423bb37821cea",
+          "packageVersion": "3.7.0",
+          "donorCommit": "289cee5baad8bafd0d4fb3ea7f28143564edfb84",
+          "model": "nan/deepseek-v4-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 3,
+          "arms": [
+            "old-rules"
+          ]
+        },
+        {
+          "packageCommit": "2549f17a3e5be11c03d311aed16423bb37821cea",
+          "packageVersion": "3.7.0",
+          "donorCommit": null,
+          "model": "nan/deepseek-v4-flash",
+          "thinking": "high",
+          "contextFixture": "none",
+          "background": false,
+          "sessions": 9,
+          "arms": [
+            "delegate",
+            "inline",
+            "shipped"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,221 @@
+{
+  "seed": 5139,
+  "iterations": 5000,
+  "graded": 864,
+  "judgeUsage": {
+    "promptTokens": 1477189,
+    "completionTokens": 103838
+  },
+  "comparisons": [
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "all",
+      "n": 216,
+      "meanDiff": -0.10960648148148149,
+      "ci95": [
+        -0.14526748971193404,
+        -0.0760857583774251
+      ],
+      "worse": 89,
+      "better": 11,
+      "ties": 116
+    },
+    {
+      "a": "delegate",
+      "b": "shipped",
+      "subset": "all",
+      "n": 216,
+      "meanDiff": -0.08854166666666664,
+      "ci95": [
+        -0.11961713697824801,
+        -0.05195105820105822
+      ],
+      "worse": 83,
+      "better": 21,
+      "ties": 112
+    },
+    {
+      "a": "delegate",
+      "b": "old-rules",
+      "subset": "all",
+      "n": 216,
+      "meanDiff": -0.10121435920047032,
+      "ci95": [
+        -0.13479754556143445,
+        -0.0726447677836567
+      ],
+      "worse": 84,
+      "better": 15,
+      "ties": 117
+    },
+    {
+      "a": "shipped",
+      "b": "inline",
+      "subset": "all",
+      "n": 216,
+      "meanDiff": -0.021064814814814814,
+      "ci95": [
+        -0.0446410199882422,
+        0.005992798353909456
+      ],
+      "worse": 54,
+      "better": 22,
+      "ties": 140
+    },
+    {
+      "a": "old-rules",
+      "b": "inline",
+      "subset": "all",
+      "n": 216,
+      "meanDiff": -0.008392122281011173,
+      "ci95": [
+        -0.032030790711346235,
+        0.012744341563785998
+      ],
+      "worse": 46,
+      "better": 31,
+      "ties": 139
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "size=small",
+      "n": 72,
+      "meanDiff": -0.03579695767195767,
+      "ci95": [
+        -0.06307870370370369,
+        -0.012318121693121693
+      ],
+      "worse": 14,
+      "better": 3,
+      "ties": 55
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "size=medium",
+      "n": 72,
+      "meanDiff": -0.07303791887125223,
+      "ci95": [
+        -0.13295855379188715,
+        -0.013255070546737217
+      ],
+      "worse": 28,
+      "better": 4,
+      "ties": 40
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "size=large",
+      "n": 72,
+      "meanDiff": -0.21998456790123455,
+      "ci95": [
+        -0.27669753086419746,
+        -0.16790123456790126
+      ],
+      "worse": 47,
+      "better": 4,
+      "ties": 21
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "follow-ups",
+      "n": 108,
+      "meanDiff": -0.052932098765432097,
+      "ci95": [
+        -0.09120370370370372,
+        -0.01589506172839506
+      ],
+      "worse": 25,
+      "better": 4,
+      "ties": 79
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "first questions",
+      "n": 108,
+      "meanDiff": -0.1662808641975309,
+      "ci95": [
+        -0.21352145796590238,
+        -0.11995149911816577
+      ],
+      "worse": 64,
+      "better": 7,
+      "ties": 37
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "model=nan/glm5.3-flash",
+      "n": 96,
+      "meanDiff": -0.1385085978835979,
+      "ci95": [
+        -0.1893477182539682,
+        -0.09174520502645504
+      ],
+      "worse": 43,
+      "better": 5,
+      "ties": 48
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "model=nan/deepseek-v4-flash",
+      "n": 96,
+      "meanDiff": -0.1174685846560846,
+      "ci95": [
+        -0.1524140211640211,
+        -0.08313492063492064
+      ],
+      "worse": 40,
+      "better": 3,
+      "ties": 53
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "model=nan/qwen3.8-flash",
+      "n": 24,
+      "meanDiff": 0.03745039682539682,
+      "ci95": [
+        -0.08725198412698414,
+        0.1751322751322751
+      ],
+      "worse": 6,
+      "better": 3,
+      "ties": 15
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "long sessions",
+      "n": 144,
+      "meanDiff": -0.130544532627866,
+      "ci95": [
+        -0.17261353615520278,
+        -0.10133928571428572
+      ],
+      "worse": 64,
+      "better": 6,
+      "ties": 74
+    },
+    {
+      "a": "delegate",
+      "b": "inline",
+      "subset": "short sessions",
+      "n": 72,
+      "meanDiff": -0.06773037918871254,
+      "ci95": [
+        -0.1282903439153439,
+        -0.0013117283950617269
+      ],
+      "worse": 25,
+      "better": 5,
+      "ties": 42
+    }
+  ]
+}

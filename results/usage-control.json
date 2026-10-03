@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "batches": [
+    {
+      "batch": "pilot-01",
+      "models": [
+        "nan/glm5.3-flash"
+      ],
+      "window": {
+        "before": "2026-10-01T07:26:14Z",
+        "after": "2026-10-01T10:30:50Z"
+      },
+      "provider": {
+        "promptTokens": 19234669,
+        "completionTokens": 243946,
+        "requests": 732,
+        "days": [
+          "2026-10-01"
+        ]
+      },
+      "analyzer": {
+        "sessions": 48,
+        "promptTokens": 19219284,
+        "outputTokens": 243946,
+        "zeroUsageTurns": 1
+      },
+      "difference": {
+        "promptTokens": -15385,
+        "promptShare": -0.0007998577984367706,
+        "outputTokens": 0,
+        "outputShare": 0
+      }
+    },
+    {
+      "batch": "pilot-02-deepseek-v4-flash",
+      "models": [
+        "nan/deepseek-v4-flash"
+      ],
+      "window": {
+        "before": "2026-10-01T11:58:21Z",
+        "after": "2026-10-01T13:45:47Z"
+      },
+      "provider": {
+        "promptTokens": 22950932,
+        "completionTokens": 507851,
+        "requests": 786,
+        "days": [
+          "2026-10-01"
+        ]
+      },
+      "analyzer": {
+        "sessions": 48,
+        "promptTokens": 22950932,
+        "outputTokens": 507851,
+        "zeroUsageTurns": 0
+      },
+      "difference": {
+        "promptTokens": 0,
+        "promptShare": 0,
+        "outputTokens": 0,
+        "outputShare": 0
+      }
+    },
+    {
+      "batch": "pilot-02-qwen3.8-flash",
+      "models": [
+        "nan/qwen3.8-flash"
+      ],
+      "window": {
+        "before": "2026-10-01T13:45:48Z",
+        "after": "2026-10-01T18:48:17Z"
+      },
+      "provider": {
+        "promptTokens": 64637039,
+        "completionTokens": 982938,
+        "requests": 1720,
+        "days": [
+          "2026-10-01"
+        ]
+      },
+      "analyzer": {
+        "sessions": 48,
+        "promptTokens": 64436504,
+        "outputTokens": 986557,
+        "zeroUsageTurns": 6
+      },
+      "difference": {
+        "promptTokens": -200535,
+        "promptShare": -0.003102478131772094,
+        "outputTokens": 3619,
+        "outputShare": 0.0036818191991763467
+      }
+    },
+    {
+      "batch": "long-01",
+      "models": [
+        "nan/glm5.3-flash"
+      ],
+      "window": {
+        "before": "2026-10-01T10:42:36Z",
+        "after": "2026-10-01T17:25:28Z"
+      },
+      "provider": {
+        "promptTokens": 95815510,
+        "completionTokens": 574639,
+        "requests": 1360,
+        "days": [
+          "2026-10-01"
+        ]
+      },
+      "analyzer": {
+        "sessions": 12,
+        "promptTokens": 95815510,
+        "outputTokens": 574639,
+        "zeroUsageTurns": 1
+      },
+      "difference": {
+        "promptTokens": 0,
+        "promptShare": 0,
+        "outputTokens": 0,
+        "outputShare": 0
+      }
+    },
+    {
+      "batch": "long-02",
+      "models": [
+        "nan/deepseek-v4-flash"
+      ],
+      "window": {
+        "before": "2026-10-01T22:00:18Z",
+        "after": "2026-10-02T02:43:31Z"
+      },
+      "provider": {
+        "promptTokens": 196730717,
+        "completionTokens": 1529243,
+        "requests": 1953,
+        "days": [
+          "2026-10-01",
+          "2026-10-02"
+        ]
+      },
+      "analyzer": {
+        "sessions": 12,
+        "promptTokens": 196730717,
+        "outputTokens": 1529243,
+        "zeroUsageTurns": 0
+      },
+      "difference": {
+        "promptTokens": 0,
+        "promptShare": 0,
+        "outputTokens": 0,
+        "outputShare": 0
+      }
+    }
+  ]
+}

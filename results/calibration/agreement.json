@@ -1,0 +1,27 @@
+{
+  "judge": "pi/openai-codex/gpt-6.1-sol",
+  "reference": "calibration/reference.json",
+  "answers": 30,
+  "ungradedReference": 0,
+  "missingFromJudge": 0,
+  "facts": {
+    "compared": 156,
+    "agree": 156,
+    "rate": 1,
+    "kappa": 1
+  },
+  "forbidden": {
+    "compared": 46,
+    "agree": 46,
+    "rate": 1
+  },
+  "score": {
+    "pearson": 1,
+    "meanAbsDiff": 0
+  },
+  "language": {
+    "compared": 30,
+    "agree": 30
+  },
+  "disagreements": []
+}

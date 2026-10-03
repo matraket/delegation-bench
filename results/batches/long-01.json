@@ -1,0 +1,3491 @@
+{
+  "schemaVersion": 1,
+  "selector": "long-01-",
+  "runsRoot": ".bench/runs",
+  "sessionCount": 12,
+  "turnsSettled": 288,
+  "totals": {
+    "prompt": 95815510,
+    "output": 574639,
+    "zeroUsageTurns": 1,
+    "statuses": [
+      "completed"
+    ]
+  },
+  "groups": [
+    {
+      "model": "nan/glm5.3-flash",
+      "kind": "long",
+      "sessions": 12,
+      "arms": [
+        {
+          "arm": "old-rules",
+          "sessions": 3,
+          "delegatedSessions": 0,
+          "children": 0,
+          "nan": {
+            "total": 27449106,
+            "median": 8817444,
+            "min": 7882406,
+            "max": 10749256
+          },
+          "api": {
+            "total": 4522727.6,
+            "median": 1527620,
+            "min": 1110511.6,
+            "max": 1884596
+          },
+          "parentNan": {
+            "total": 27449106,
+            "median": 8817444,
+            "min": 7882406,
+            "max": 10749256
+          },
+          "prompt": 27337699,
+          "output": 111407,
+          "zeroUsageTurns": 0,
+          "peak": {
+            "median": 156611,
+            "min": 154818,
+            "max": 170738
+          },
+          "final": {
+            "median": 156611,
+            "min": 154818,
+            "max": 170738
+          },
+          "wallSeconds": {
+            "total": 4620.074,
+            "median": 1635.225,
+            "min": 1260.153,
+            "max": 1724.696
+          },
+          "userTurns": 72,
+          "overBudgetTurns": 19,
+          "maxEvidence": 32426,
+          "language": {
+            "en": 72,
+            "es": 0,
+            "esLate": 0,
+            "none": 0
+          },
+          "ratioVsInline": null
+        },
+        {
+          "arm": "inline",
+          "sessions": 3,
+          "delegatedSessions": 0,
+          "children": 0,
+          "nan": {
+            "total": 29087303,
+            "median": 9308549,
+            "min": 9171104,
+            "max": 10607650
+          },
+          "api": {
+            "total": 4720876.600000001,
+            "median": 1509738.6,
+            "min": 1291524.8,
+            "max": 1919613.2
+          },
+          "parentNan": {
+            "total": 29087303,
+            "median": 9308549,
+            "min": 9171104,
+            "max": 10607650
+          },
+          "prompt": 28962228,
+          "output": 125075,
+          "zeroUsageTurns": 0,
+          "peak": {
+            "median": 157806,
+            "min": 157185,
+            "max": 172854
+          },
+          "final": {
+            "median": 157806,
+            "min": 157185,
+            "max": 172854
+          },
+          "wallSeconds": {
+            "total": 5815.853,
+            "median": 1908.143,
+            "min": 1842.977,
+            "max": 2064.733
+          },
+          "userTurns": 72,
+          "overBudgetTurns": 16,
+          "maxEvidence": 34458,
+          "language": {
+            "en": 72,
+            "es": 0,
+            "esLate": 0,
+            "none": 0
+          },
+          "ratioVsInline": null
+        },
+        {
+          "arm": "shipped",
+          "sessions": 3,
+          "delegatedSessions": 0,
+          "children": 0,
+          "nan": {
+            "total": 25054990,
+            "median": 8346953,
+            "min": 7266146,
+            "max": 9441891
+          },
+          "api": {
+            "total": 4019402.8,
+            "median": 1300756.6,
+            "min": 1299293,
+            "max": 1419353.2
+          },
+          "parentNan": {
+            "total": 25054990,
+            "median": 8346953,
+            "min": 7266146,
+            "max": 9441891
+          },
+          "prompt": 24937906,
+          "output": 117084,
+          "zeroUsageTurns": 0,
+          "peak": {
+            "median": 152080,
+            "min": 140154,
+            "max": 171122
+          },
+          "final": {
+            "median": 152080,
+            "min": 140154,
+            "max": 171122
+          },
+          "wallSeconds": {
+            "total": 5016.932,
+            "median": 1654.399,
+            "min": 1546.114,
+            "max": 1816.419
+          },
+          "userTurns": 72,
+          "overBudgetTurns": 13,
+          "maxEvidence": 28700,
+          "language": {
+            "en": 72,
+            "es": 0,
+            "esLate": 0,
+            "none": 0
+          },
+          "ratioVsInline": null
+        },
+        {
+          "arm": "delegate",
+          "sessions": 3,
+          "delegatedSessions": 3,
+          "children": 61,
+          "nan": {
+            "total": 14798750,
+            "median": 4129954,
+            "min": 3918814,
+            "max": 6749982
+          },
+          "api": {
+            "total": 5171560.399999999,
+            "median": 1883208.4,
+            "min": 1360481.2,
+            "max": 1927870.8
+          },
+          "parentNan": {
+            "total": 9191264,
+            "median": 2356017,
+            "min": 2278490,
+            "max": 4556757
+          },
+          "prompt": 14577677,
+          "output": 221073,
+          "zeroUsageTurns": 1,
+          "peak": {
+            "median": 79563,
+            "min": 73083,
+            "max": 95279
+          },
+          "final": {
+            "median": 79563,
+            "min": 73083,
+            "max": 95279
+          },
+          "wallSeconds": {
+            "total": 8646.743,
+            "median": 2960.51,
+            "min": 2457.949,
+            "max": 3228.284
+          },
+          "userTurns": 72,
+          "overBudgetTurns": 1,
+          "maxEvidence": 2478,
+          "language": {
+            "en": 72,
+            "es": 0,
+            "esLate": 0,
+            "none": 0
+          },
+          "ratioVsInline": null
+        }
+      ],
+      "sizes": []
+    }
+  ],
+  "sessions": [
+    {
+      "runId": "long-01-01-inline-r2",
+      "arm": "inline",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 2,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 9308549,
+      "api": 1509738.6,
+      "parentNan": 9308549,
+      "prompt": 9265162,
+      "output": 43387,
+      "zeroUsageTurns": 0,
+      "peak": 157185,
+      "final": 157185,
+      "wallSeconds": 1908.143,
+      "userTurns": 24,
+      "overBudgetTurns": 6,
+      "maxEvidence": 22347,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 22347,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1216,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 15703,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 3100,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 11901,
+          "rounds": 14,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 8713,
+          "rounds": 9,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2370,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 6572,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 907,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5489,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 87,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 11399,
+          "rounds": 5,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 2015,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 339,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2503,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2158,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-02-old-rules-r1",
+      "arm": "old-rules",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 1,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 10749256,
+      "api": 1884596,
+      "parentNan": 10749256,
+      "prompt": 10706205,
+      "output": 43051,
+      "zeroUsageTurns": 0,
+      "peak": 170738,
+      "final": 170738,
+      "wallSeconds": 1724.696,
+      "userTurns": 24,
+      "overBudgetTurns": 8,
+      "maxEvidence": 30332,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 30332,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 15899,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 3098,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 14666,
+          "rounds": 12,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 8186,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2619,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 6788,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 600,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5783,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 2135,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 11729,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 2033,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 339,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2024,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 3546,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-03-delegate-r3",
+      "arm": "delegate",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 3,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": true,
+      "children": 20,
+      "nan": 3918814,
+      "api": 1360481.2,
+      "parentNan": 2278490,
+      "prompt": 3857578,
+      "output": 61236,
+      "zeroUsageTurns": 1,
+      "peak": 73083,
+      "final": 73083,
+      "wallSeconds": 2457.949,
+      "userTurns": 24,
+      "overBudgetTurns": 0,
+      "maxEvidence": 2420,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 1857,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1612,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 1749,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2420,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 2111,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 894,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 1333,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 1143,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 1020,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 678,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 1245,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 427,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 1306,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 774,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 733,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 550,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 773,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 1136,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 962,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 814,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-04-delegate-r2",
+      "arm": "delegate",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 2,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": true,
+      "children": 21,
+      "nan": 6749982,
+      "api": 1883208.4,
+      "parentNan": 4556757,
+      "prompt": 6665045,
+      "output": 84937,
+      "zeroUsageTurns": 0,
+      "peak": 95279,
+      "final": 95279,
+      "wallSeconds": 3228.284,
+      "userTurns": 24,
+      "overBudgetTurns": 1,
+      "maxEvidence": 2478,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 2478,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1749,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 2307,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 1633,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 1894,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 1306,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 2139,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 1053,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2033,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 892,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 1979,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 1007,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 1773,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 1798,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 2002,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 1558,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1111,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 1549,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 1061,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 1731,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 1591,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 1846,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-05-delegate-r1",
+      "arm": "delegate",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 1,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": true,
+      "children": 20,
+      "nan": 4129954,
+      "api": 1927870.8,
+      "parentNan": 2356017,
+      "prompt": 4055054,
+      "output": 74900,
+      "zeroUsageTurns": 0,
+      "peak": 79563,
+      "final": 79563,
+      "wallSeconds": 2960.51,
+      "userTurns": 24,
+      "overBudgetTurns": 0,
+      "maxEvidence": 2270,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 2107,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1702,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 1731,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 1366,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 2270,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 1419,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 1610,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 1382,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 1526,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 1088,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 1299,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 1265,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 1271,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 1208,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1078,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 1117,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 783,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 1381,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 1330,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 1222,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-06-shipped-r1",
+      "arm": "shipped",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 1,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 9441891,
+      "api": 1300756.6,
+      "parentNan": 9441891,
+      "prompt": 9402149,
+      "output": 39742,
+      "zeroUsageTurns": 0,
+      "peak": 171122,
+      "final": 171122,
+      "wallSeconds": 1546.114,
+      "userTurns": 24,
+      "overBudgetTurns": 4,
+      "maxEvidence": 28700,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 28700,
+          "rounds": 5,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 23829,
+          "rounds": 4,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2057,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 18425,
+          "rounds": 14,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 8425,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2619,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 5967,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 973,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 4999,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 7085,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 3080,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1982,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 1391,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2024,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2942,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-07-shipped-r2",
+      "arm": "shipped",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 2,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 7266146,
+      "api": 1419353.2,
+      "parentNan": 7266146,
+      "prompt": 7229769,
+      "output": 36377,
+      "zeroUsageTurns": 0,
+      "peak": 140154,
+      "final": 140154,
+      "wallSeconds": 1654.399,
+      "userTurns": 24,
+      "overBudgetTurns": 4,
+      "maxEvidence": 21307,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 21307,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1173,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 12040,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 3012,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 12380,
+          "rounds": 14,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 6370,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2362,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 3705,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5837,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 86,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 10869,
+          "rounds": 5,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1990,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 339,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2065,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2071,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-08-inline-r3",
+      "arm": "inline",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 3,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 9171104,
+      "api": 1291524.8,
+      "parentNan": 9171104,
+      "prompt": 9129794,
+      "output": 41310,
+      "zeroUsageTurns": 0,
+      "peak": 172854,
+      "final": 172854,
+      "wallSeconds": 1842.977,
+      "userTurns": 24,
+      "overBudgetTurns": 5,
+      "maxEvidence": 24918,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 24918,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 3561,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 24325,
+          "rounds": 3,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2202,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 15986,
+          "rounds": 10,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 11409,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2670,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 5320,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5562,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 12436,
+          "rounds": 5,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1998,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 339,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2823,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2254,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-09-inline-r1",
+      "arm": "inline",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 1,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 10607650,
+      "api": 1919613.2,
+      "parentNan": 10607650,
+      "prompt": 10567272,
+      "output": 40378,
+      "zeroUsageTurns": 0,
+      "peak": 157806,
+      "final": 157806,
+      "wallSeconds": 2064.733,
+      "userTurns": 24,
+      "overBudgetTurns": 5,
+      "maxEvidence": 34458,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 34458,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 9394,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2665,
+          "rounds": 10,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 12363,
+          "rounds": 12,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 11133,
+          "rounds": 10,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2670,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 3355,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 3542,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5489,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 5935,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 2963,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 2041,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 556,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2043,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2445,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-10-old-rules-r3",
+      "arm": "old-rules",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 3,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 8817444,
+      "api": 1527620,
+      "parentNan": 8817444,
+      "prompt": 8784820,
+      "output": 32624,
+      "zeroUsageTurns": 0,
+      "peak": 156611,
+      "final": 156611,
+      "wallSeconds": 1635.225,
+      "userTurns": 24,
+      "overBudgetTurns": 5,
+      "maxEvidence": 24453,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 24453,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 3728,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 14314,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2058,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 13461,
+          "rounds": 11,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 8584,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2628,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 10725,
+          "rounds": 9,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 6141,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 169,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 12372,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 2319,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 411,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2882,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2064,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-11-shipped-r3",
+      "arm": "shipped",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 3,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 8346953,
+      "api": 1299293,
+      "parentNan": 8346953,
+      "prompt": 8305988,
+      "output": 40965,
+      "zeroUsageTurns": 0,
+      "peak": 152080,
+      "final": 152080,
+      "wallSeconds": 1816.419,
+      "userTurns": 24,
+      "overBudgetTurns": 5,
+      "maxEvidence": 23015,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 23015,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 1434,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 13570,
+          "rounds": 9,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2959,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 11626,
+          "rounds": 11,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 7707,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 1882,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 603,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 4920,
+          "rounds": 5,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 1850,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 5105,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 11358,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 2017,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 339,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2065,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 3210,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    },
+    {
+      "runId": "long-01-12-old-rules-r2",
+      "arm": "old-rules",
+      "model": "nan/glm5.3-flash",
+      "modelDir": "nan_glm5.3-flash",
+      "rep": 1,
+      "replicate": 2,
+      "kind": "long",
+      "question": null,
+      "size": null,
+      "questionFile": "questions/generated/long.json",
+      "questionSetId": "gentle-shell-cc36bd8d/long",
+      "status": "completed",
+      "turnsSettled": 24,
+      "delegated": false,
+      "children": 0,
+      "nan": 7882406,
+      "api": 1110511.6,
+      "parentNan": 7882406,
+      "prompt": 7846674,
+      "output": 35732,
+      "zeroUsageTurns": 0,
+      "peak": 154818,
+      "final": 154818,
+      "wallSeconds": 1260.153,
+      "userTurns": 24,
+      "overBudgetTurns": 6,
+      "maxEvidence": 32426,
+      "turns": [
+        {
+          "index": 0,
+          "id": "l1-launcher-startup",
+          "status": "settled",
+          "evidenceTokens": 32426,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 1,
+          "id": "l1-launcher-startup-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 2,
+          "id": "l2-prompt-history",
+          "status": "settled",
+          "evidenceTokens": 7352,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 3,
+          "id": "l2-prompt-history-followup",
+          "status": "settled",
+          "evidenceTokens": 2349,
+          "rounds": 6,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 4,
+          "id": "l3-bash-guard",
+          "status": "settled",
+          "evidenceTokens": 13255,
+          "rounds": 8,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 5,
+          "id": "l3-bash-guard-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 6,
+          "id": "l4-telemetry",
+          "status": "settled",
+          "evidenceTokens": 13317,
+          "rounds": 7,
+          "overBudget": true,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 7,
+          "id": "l4-telemetry-followup",
+          "status": "settled",
+          "evidenceTokens": 736,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 8,
+          "id": "m1-resume-hint",
+          "status": "settled",
+          "evidenceTokens": 2619,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 9,
+          "id": "m1-resume-hint-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 10,
+          "id": "m2-esc-handling",
+          "status": "settled",
+          "evidenceTokens": 3932,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 11,
+          "id": "m2-esc-handling-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": false
+        },
+        {
+          "index": 12,
+          "id": "m3-command-palette",
+          "status": "settled",
+          "evidenceTokens": 6246,
+          "rounds": 4,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 13,
+          "id": "m3-command-palette-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 14,
+          "id": "m4-subscription-usage",
+          "status": "settled",
+          "evidenceTokens": 11567,
+          "rounds": 5,
+          "overBudget": true,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 15,
+          "id": "m4-subscription-usage-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 16,
+          "id": "s1-nan-provider",
+          "status": "settled",
+          "evidenceTokens": 1918,
+          "rounds": 1,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 17,
+          "id": "s1-nan-provider-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 18,
+          "id": "s2-gauge",
+          "status": "settled",
+          "evidenceTokens": 622,
+          "rounds": 3,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 19,
+          "id": "s2-gauge-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 20,
+          "id": "s3-vim-counts",
+          "status": "settled",
+          "evidenceTokens": 2671,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 21,
+          "id": "s3-vim-counts-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 22,
+          "id": "s4-visual-profiles",
+          "status": "settled",
+          "evidenceTokens": 2686,
+          "rounds": 2,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        },
+        {
+          "index": 23,
+          "id": "s4-visual-profiles-followup",
+          "status": "settled",
+          "evidenceTokens": 0,
+          "rounds": 0,
+          "overBudget": false,
+          "language": "en",
+          "late": true
+        }
+      ]
+    }
+  ]
+}

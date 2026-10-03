@@ -1,0 +1,1406 @@
+{
+  "schema": "delegation-bench.sample-judgments/v1",
+  "judgeModel": "pi/openai-codex/gpt-6.1-sol",
+  "promptVersion": "grade-v1",
+  "seed": 5139,
+  "entries": [
+    {
+      "sampleId": "faa393d1074e54d4",
+      "turnId": "m1-resume-hint",
+      "question": "When an interactive Gentle Shell session is quit, Gentle Shell prints its own command for resuming the session. Why is pi's own resume hint not enough, and how does the information travel from the pi process to the code that prints the line? Describe what the printed command contains. Answer in English.",
+      "answer": "## Why pi's own hint isn't enough\n\nPi's interactive quit path (`modes/interactive/interactive-mode.js`, `formatResumeCommand`) prints a dimmed `To resume this session:` followed by `pi --session <id>`. Two things make that unusable under Gentle Shell:\n\n1. **The home is missing.** Pi resolves sessions from `PI_CODING_AGENT_DIR`. The launcher sets that variable only on the pi child it spawns, inside `buildPiInvocation` — it is never exported to the user's shell. Pasted into a fresh shell, `pi --session <id>` falls back to pi's default `~/.pi/agent`, where a session created in the isolated home (`~/.gentle-shell/agent`, the default) or a `--home <path>` home simply is not there. The hint names the bare `pi` binary and never mentions the directory.\n2. **The wrong entry point.** The re-entry point must be `gentle-shell` with the same home selector flags (`--link`, or `--home <dir>`), otherwise even a working session id would be looked up in a different home on the next launch.\n\nThe clean fix belongs upstream (`earendil-works/pi#8048`, `#9750`). Until then Gentle Shell **appends** its own line below pi's and leaves pi's output untouched, so both lines appear.\n\n## How the information travels\n\nThe pi process and the process that prints the line are *different processes*: `bin/gentle-shell.mjs` is the parent, and it prints after the pi child has exited. The bridge is a private JSON file in a temp directory plus one environment variable.\n\n1. **Launcher, before spawn.** `createResumeHandoff()` calls `mkdtempSync(join(tmpdir(), \"gentle-shell-resume-\"))`, yields `<tmpdir>/gentle-shell-resume-XXXXXX/handoff.json`, and injects `GENTLE_SHELL_RESUME_HANDOFF=<that path>` into the child env. Only for an interactive launch: a pi subcommand (`gentle-shell install …`) gets no handoff at all.\n2. **Extension claims the path.** `extensions/resume-hint.ts` is loaded as part of the package (`-e <packageRoot>`). `claimHandoffPath` refuses any value that isn't shaped like the launcher's private file — absolute, basename exactly `handoff.json`, parent directory name prefixed `gentle-shell-resume-`, no C0/C1 control characters — so an inherited or planted value cannot aim the write at another file. It then **deletes** `GENTLE_SHELL_RESUME_HANDOFF` from `process.env`, because subagents and tool shells inherit the environment and their own shutdowns must not overwrite the handoff. The path is stashed on `globalThis[Symbol.for(\"gentle-pi.resume-hint\")]`, deliberately process-wide rather than per extension instance, so a `/reload` that re-runs the factory keeps using the same path instead of going inert. With the variable absent (plain pi) the extension is inert.\n3. **Writing the handoff.** Only on `session_shutdown` with `event.reason === \"quit\"` and `ctx.mode === \"tui\"`. It snapshots `sessionManager.getSessionId()`, `getSessionDir()`, `getSessionFile()`, `getCwd()`, plus `process.cwd()` as `launchCwd` and `getAgentDir()`, mirrors pi's own guards (no handoff for an unpersisted session, or one whose file was never written), and writes with flag `\"wx\"` — create-only, so an existing file or a planted symlink is not ours to write. Every failure is swallowed: without a handoff the launcher prints nothing extra.\n4. **What the file contains — only what a fresh process cannot recompute:**\n   - `{\"sessionId\":\"<id>\"}` — the common case: launched cwd equals the session cwd, and the session sits in pi's default per-cwd directory (`<agentDir>/sessions/--<cwd-with-dashes>--`, compared against a byte-for-byte mirror of pi's unexported `getDefaultSessionDirPath`).\n   - `{\"sessionId\",\"sessionDir\"}` — when that comparison fails, i.e. pi would have added `--session-dir`.\n   - `{\"sessionId\",\"sessionFile\":\"<absolute path>.jsonl\"}` — when the session belongs to a *different* project than the launch cwd (for instance after `/resume`, which changes the session's cwd). A bare id there would make pi offer a fork into the launch directory; an absolute path reopens the original session, because pi treats a `--session` value containing a path separator as a file path.\n5. **Reading and printing.** In `child.on(\"exit\")`, the launcher reads the file (`readJsonIfExists`) and parses it tolerantly (`parseResumeHandoff`: a missing, stale, or foreign file just means \"print nothing\"; only a pi-valid session-id charset, an absolute `.jsonl` `sessionFile`, and control-character-free values are accepted). It then calls `planResumeHint({handoff, homeFlags: homeSelectorFlags(home), stdoutIsTTY, terminalHungUp, platform, color})`, writes the returned line to stdout, removes the temp directory (`rmSync` recursive), and exits with pi's exit code. On Windows it waits for the asynchronous TTY write to flush (`process.stdout.write(hint, cb)`) and installs a `once(\"error\")` handler so a closed terminal turns into pi's exit code rather than a launcher crash.\n\n**Nothing is printed** when: there is no handoff; the handoff is missing/stale/foreign; stdout is not a TTY (the same rule pi applies); the launcher received `SIGHUP` (terminal gone — note only SIGHUP sets that flag, since pi may survive a forwarded SIGINT and keep running); or any argument cannot be quoted safely for the platform's shell.\n\n## What the printed line contains\n\n`To resume in gentle-shell: <command>` plus a newline, where the label is wrapped in `\\x1b[2m…\\x1b[22m` when stdout reports colors (`NO_COLOR`/`FORCE_COLOR=0`/dumb terminals turn it off, matching pi's own dimmed label) and plain otherwise.\n\n`<command>` is `gentle-shell`, then:\n\n- **the home selector flags** from `homeSelectorFlags(home)` — nothing for the isolated home (it is the launcher's default), `--link`, or `--home <dir>`;\n- **the session argument**, one of:\n  - `--session <id>` (session in pi's default per-cwd dir, same cwd),\n  - `--session-dir <dir> --session <id>`,\n  - `--session <absolute .jsonl path>` (session from another project).\n\nQuoting is platform-aware: POSIX uses the launcher's shared single-quote `shellQuote`; on win32 double quotes are used only for non-plain values (cmd.exe and PowerShell do not treat single quotes as quoting) and the value is refused outright — printing nothing at all — if it contains `\" % ! $ \\` & | < > ^ ( )`, ends in a backslash, or holds control characters.\n\nConcretely: isolated home, same cwd, default session dir → `gentle-shell --session <id>`; `--link` → `gentle-shell --link --session <id>`; `--home '/x y'` with a custom session dir → `gentle-shell --home '/x y' --session-dir '/tmp/my sessions' --session <id>`. In the first two cases the string is byte-identical to pi's own hint with the program name swapped — the test suite proves that by loading pi's real `formatResumeCommand` and comparing, and it also pins pi's `chalk.dim(\"To resume this session:\")` label, so the appended line is expected to disappear once upstream fixes the hint.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "pi prints \"pi --session <id>\", but under gentle-shell pi resolves sessions from PI_CODING_AGENT_DIR (the gentle-shell home), so bare pi would look in ~/.pi/agent instead.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "For an interactive launch (no pi subcommand) the launcher creates a private temp dir <tmpdir>/gentle-shell-resume-XXXXXX with handoff.json and passes its path in GENTLE_SHELL_RESUME_HANDOFF.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The resume-hint extension claims the path once (deleting the env var so subagents and tool shells do not inherit it) and accepts only paths shaped like the launcher's handoff.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "On session_shutdown with reason quit in TUI mode it writes the handoff JSON create-only (flag wx).",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "The handoff holds the session id; sessionDir only when the session is outside pi's default per-cwd directory; an absolute sessionFile when the session cwd differs from the launch cwd; nothing if the session file was never written.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "After pi exits, the launcher reads and validates the handoff and prints \"To resume in gentle-shell: gentle-shell ...\" below pi's own line, then removes the temp dir.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "The command repeats the home selector (--link, or --home <dir>; nothing for the default isolated home), then --session-dir if needed and --session <id or file>.",
+          "supported": true
+        },
+        {
+          "id": "f8",
+          "text": "It prints only to a TTY, never after SIGHUP, and prints nothing when an argument cannot be quoted safely (POSIX single quotes; double quotes on Windows with unsafe characters refused).",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Gentle Shell rewrites or replaces pi's own resume line.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "f4cd6ab3c2ab5a11",
+      "turnId": "m2-esc-handling-followup",
+      "question": "If GENTLE_PI_DOUBLE_ESC_CANCEL=on is set but the global policy file contains {\"schema\":\"gentle-pi.double-esc-cancel/v1\",\"policy\":\"on\",\"note\":\"x\"}, what is the effective policy and which source is reported? And if the user edits that file by hand mid-session, when does the Esc gate notice the change? Answer in English.",
+      "answer": "## 1. `GENTLE_PI_DOUBLE_ESC_CANCEL=on` + global file with an extra `note` key\n\n**Effective policy: `off`. Source reported: `global_file` (with `malformed: true`).** The env var is never consulted.\n\nWhy — the decoder is strict about key count, not just about recognized values (`lib/double-esc-cancel-policy.ts`):\n\n```ts\nif (parsed.schema !== DOUBLE_ESC_CANCEL_SCHEMA) return undefined;\nif (parsed.policy !== \"on\" && parsed.policy !== \"off\") return undefined;\nif (Object.keys(parsed).length !== 2) return undefined;   // ← your \"note\" trips this\n```\n\n`schema` + `policy` + `note` is 3 keys, so the parse returns `undefined` even though `\"policy\":\"on\"` is present and valid. The resolver then treats \"file exists but decodes to nothing\" as a malformed-file case and **fails closed on the file that claimed the decision**, instead of falling through to the environment:\n\n```ts\nif (globalFileExists) {\n    ...\n    return decoded === undefined\n        ? { policy: \"off\", source: \"global_file\", malformed: true, ... }\n        : { policy: decoded, source: \"global_file\", malformed: false, ... };\n}\n// never reached: the env branch only runs when no global file exists\n```\n\nThe file wins over the env var precisely *because* it exists; a broken file still occupies slot 1 in the resolution order. `tests/double-esc-cancel-policy.test.ts` pins this with the `{malformed` case plus the `...,\"extra\":1}` shape.\n\nSo `/gentle:double-esc-cancel status` prints (as a `warning`, because `type: resolution.malformed ? \"warning\" : \"info\"`):\n\n```text\ndouble-esc-cancel: off (decided by global file ~/.pi/gentle-ai/double-esc-cancel.json)\n~/.pi/gentle-ai/double-esc-cancel.json is present but malformed, so the policy fails closed to off\nand the environment variable is not consulted.\nGENTLE_PI_DOUBLE_ESC_CANCEL=on is set, but the global file exists and decides; the env var applies\nonly when no file exists.\nResolution order (first hit wins): global file, GENTLE_PI_DOUBLE_ESC_CANCEL, built-in default off.\n```\n\nIn practice: **one Esc aborts the turn immediately** (Pi's default), and `esc again to cancel` never appears. Two useful corollaries — a bare `/gentle:double-esc-cancel` with that file present reads `before.policy === \"off\"`, so its toggle direction resolves to `enable` and `writeDoubleEscCancelPolicy` rewrites a clean two-key file, which heals the malformation; and deleting the file lets the env var decide on the next resolution.\n\n## 2. Editing the file by hand mid-session\n\n**The Esc gate does not notice until the next resolution.** There is no file watcher and no per-keypress read. The policy is resolved once at extension install into a module-scope cache (`extensions/gentle-shell.ts:1684`), and the gate closure reads that variable, not the disk:\n\n```ts\ndoubleEscCancelEnabled: () => doubleEscCancelPolicy === \"on\",   // :1834\n```\n\nOnly two things refresh it:\n\n| Trigger | Where | What it does |\n| --- | --- | --- |\n| Any `/gentle:double-esc-cancel` invocation — bare, `status`, `enable`, `disable` | `:2287-2288` | `resolve…()` then `doubleEscCancelPolicy = before.policy` **before** the `status` early return, so even a read-only `status` re-syncs the live gate from disk; `enable`/`disable` re-sync again from the post-write resolve (`:2301`) |\n| Next startup / Pi runtime rebuild (reload, replacement, fork, quit re-install the extension) | `:1684` | fresh resolve |\n\nThe code comment states the invariant directly: the command handler is \"the only place that touches the file, and every invocation re-syncs this cache from disk first, so status, the no-argument toggle direction, and the Esc gate always describe the same effective policy even when another session or a hand edit changed the file mid-session.\" The cached-vs-written distinction matters after `enable`/`disable` too: it caches what the file *resolves to*, so a competing writer or an unreadable file can't leave the report and the gate disagreeing.\n\nSo: hand-edit the file and keep working → the gate behaves on the **old** policy. Run `/gentle:double-esc-cancel status` → your edit takes effect immediately, from the next keypress, including while a turn is already running. `agent_start` / `agent_settled` / `render` never re-read it.\n\nOne asymmetry worth flagging: **only the working-state gate is policy-dependent.** The idle-draft clear (flow 3, `esc again to clear`) is unconditional at 500 ms (`extensions/gentle-shell.ts:884-915`) and ignores `doubleEscCancelEnabled()` entirely — so a stale cache can change cancel-with-queue behavior while the idle-clear path stays exactly as it was.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The extra key fails the strict decode (exactly two keys), so the policy is off, attributed to the global file and marked malformed.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The env var is ignored because an existing file decides, even when malformed.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The policy is resolved once at startup and cached; a hand edit is picked up only when /gentle:double-esc-cancel runs (it re-reads the file first) or the extension loads again.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The policy is on because the environment variable says on.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The file is re-read on every key press.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "28fc97cbcd43827e",
+      "turnId": "m4-subscription-usage-followup",
+      "question": "For NaN, how is the usage percentage of a model computed, including its rolling window? What happens to the whole snapshot if one metered model is missing tokensUsed? And what does the panel say for a provider outside the supported set? Answer in English.",
+      "answer": "## NaN percentage computation\n\n`parseNanQuota` builds one limit per metered model. The allowance is `nanEffectiveAllowance(raw) = fullCap ?? cap` (only a positive finite number counts), with `fullCap` preferred because `cap` is the period-in-progress allowance and comes back prorated on a first period.\n\n**Period (billing) window** — `nanPeriodWindow`:\n\n- `usedPercent = tokensUsed / allowance × 100`\n- `label = \"\"` (empty on purpose: the model id names the row, and the reset text says what the window is)\n- `windowSeconds = resetAt === null ? 0 : round((resetAt - now)/1000)`, where `resetAt` comes from `model.periodEnd` (or the top-level `periodEnd`), and `limitReached = tokensUsed >= allowance`\n- it also carries the raw `used`/`budget` numbers, which is what later lets the bar/panel aggregate by Σused/Σbudget instead of averaging percentages.\n\n**Rolling window** — `nanRollingWindow`, added on top of the period row when the model reports one:\n\n- Used: `windowTokensUsed` (finite, ≥ 0); if it is absent, there is simply no rolling window.\n- Budget: `fullWindowTokens ?? windowTokens ?? 400_000_000` (`NAN_DEFAULT_WINDOW_TOKENS`).\n- Hours: `windowHours ?? 4` (`NAN_DEFAULT_WINDOW_HOURS`).\n- `usedPercent = windowTokensUsed / budget × 100`\n- `label = windowLabel(hours × 3600)` — e.g. `4h` for the default, `week` if it landed on a week, `Nd`/`Nh`/`Nm` otherwise.\n- `windowSeconds = hours × 3600`, `resetAt = windowResetsAt` converted to ms (a numeric seconds value ×1000, or an ISO string via `Date.parse`) or `null`.\n\nEvery field is optional because the payload is outside NaN's published contract, so the defaults above are the dashboard's own published fallbacks.\n\n## A metered model missing `tokensUsed`\n\nThe read **fails as a whole** — no partial snapshot.\n\nThe two cases are deliberately distinguished:\n\n- **No allowance** (`fullCap` and `cap` both absent/unreadable) → `continue`: the model is skipped entirely. That is not drift; the live payload carries such entries and the dashboard draws nothing for them either.\n- **Has an allowance but unreadable usage** → `parseNanQuota` returns immediately with `{ provider: \"nan\", plan: undefined, limits: [], fetchedAt: now }`. The comment is explicit: \"a partial snapshot would understate every aggregate it feeds, so the read fails whole\".\n\nThat empty result then gates at the transport: `fetchNanUsage` returns `undefined` unless `parsed.limits.length > 0`. In `refreshProvider`, a settled `undefined` is a real failure — the provider is added to `usageFailures` and **nothing is recorded**, so the **last valid snapshot survives untouched** in the `UsageStore`. The panel keeps drawing that previous snapshot and appends `fetch failed · r to retry` below its rows (the \"failure after a good snapshot never hides either fact\" branch), rather than blanking the provider.\n\n## An unsupported provider in the panel\n\n`providerNote(provider, registry)` resolves as built-in pending note → registered source's `pendingNote` → `UNSUPPORTED_NOTE`, which is:\n\n> `no subscription usage for this provider`\n\nSo a provider outside the built-in set renders as a single explanatory row:\n\n```\n✿ my-provider · no subscription usage for this provider\n```\n\n(the `✿` petal mark only when it is the session's active provider). It is never fetched, because `refreshProvider` bails immediately unless the provider has a registered source or is `openai-codex`/`nan` — so it can never flip into the `fetch failed` note; it just stays in that unsupported/pending state until an extension registers a source for it, at which point the note switches to that source's `pendingNote` (or the generic `no usage yet · r to fetch`). The near-miss case is `anthropic`: it is supported but header-only, so its note is the special `usage arrives with the first response`.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Period usage = tokensUsed / allowance * 100, where the allowance is fullCap, falling back to cap; models with neither are skipped.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Rolling window = windowTokensUsed / (fullWindowTokens, else windowTokens, else 400,000,000) * 100, over windowHours (default 4).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A metered model without readable tokensUsed makes the whole read return no limits; the fetch then yields nothing, the provider is marked failed and the last valid snapshot survives.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "A model's limit is reached when tokensUsed >= allowance.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "An unsupported provider with no registered source shows \"no subscription usage for this provider\".",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models with readable data are kept while only the broken model is dropped.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "b9066eb94bd827d8",
+      "turnId": "s3-vim-counts",
+      "question": "Gentle Shell's prompt editor has an optional Vim mode. In its NORMAL-mode motion engine, how are numeric counts parsed and bounded, which keys switch to insert mode and where does each put the cursor, and how do gg and G behave with and without a count? Answer in English.",
+      "answer": "All of this lives in `lib/vim-normal-engine.ts` (`VimNormalEngine.input`), which operates on grapheme positions per line and returns a `VimMotion` (cursor, optional insert trigger, handled flag).\n\n## Numeric counts: parsing and bounding\n\n- Digits accumulate in a `digits` buffer: a key matching `^[1-9]$` starts or extends the count. A **bare `0` is not a count** — with no digits buffered it's the line-start motion; only when digits are already buffered does `0` append (so `10` works, `0` alone is a motion).\n- A multi-character key delivered in one call (e.g. `\"12x\"` from a fast paste) is split: `digits = \"12\"`, key = `\"x\"` — the count still applies.\n- **Bounding:** `const count = Math.min(10000, Number(this.digits) || 1)` — counts are capped at **10,000** and default to **1**. Separately, `explicit = digits.length > 0` records whether the user actually typed a number, which is what makes `gg`/`G` behave differently with and without one. The buffer is cleared after every motion, so a count never leaks into the next command.\n\n## Keys that switch to insert mode, and cursor placement\n\nThe engine signals insert via the `insert` field (`\"\"` = enter insert at the returned cursor; `\"\\n\"` = open a line):\n\n- **`i`** — cursor unchanged, insert at the current position.\n- **`I`** — cursor moves to the **first non-whitespace** of the current line, insert there.\n- **`a`** — cursor moves **one grapheme right** (clamped to the last position of the line), insert.\n- **`A`** — cursor moves to the **end of the line** (same target as `$`), insert.\n- **`o`** — insert trigger `\"\\n\"` with the cursor at the **end of the current line** → the adapter opens a line **below**.\n- **`O`** — insert trigger `\"\\n\"` with the cursor at **column 0** → the adapter opens a line **above**.\n\n(Any other key returns `handled: false` and falls through to pi's editor.)\n\n## `gg` and `G`\n\n- **`g`** alone is a prefix: it sets `awaitingG`, stashes `gLine = count − 1` *only if a count was typed* (`explicit`), and returns the cursor unmoved.\n- **`gg` (no count):** line = `gLine ?? 0` → **first line**, column 0 (clamped to the last line of the buffer). The preferred column for `j`/`k` is reset.\n- **`<N>gg`:** the stashed `gLine = N − 1` → **line N** (1-based), column 0, clamped to the last line.\n- **`G` (no count):** **last line**, column 0 — the `explicit` flag is what prevents the default `count = 1` from making a bare `G` jump to line 1.\n- **`<N>G`:** `min(lastLine, N − 1)` → **line N**, column 0, same clamping.\n\nSo `5gg` and `5G` are equivalent (line 5, col 0), both bounded by the actual line count, and both clear the `j`/`k` preferred-column state since they're absolute jumps.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Digits 1-9 start a count; 0 extends a pending count, but with no pending count 0 moves to column 0.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The count defaults to 1 and is capped at 10000.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "i inserts at the cursor, I at the first non-whitespace column, a one position to the right, and A at the end of the line.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "o opens a new line below (inserting a newline at the end of the line) and O a line above (newline at column 0).",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "gg goes to the first line, or with a count N to line N (clamped to the last line), at column 0.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "G goes to the last line, or with a count N to line N (clamped), at column 0.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "Keys the engine does not know return handled: false.",
+          "supported": true
+        }
+      ],
+      "forbidden": [],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "d515f9f2bd23cd6b",
+      "turnId": "s1-nan-provider",
+      "question": "Gentle Shell ships its own built-in provider for NaN Builders. How does that provider decide which models it offers, and how does it obtain the API key it sends? Answer in English.",
+      "answer": "## How the NaN provider decides which models it offers\n\nIt's a **hybrid catalog: a maintained offline baseline, narrowed by a live discovery call** — never a raw dump of the live list:\n\n1. **Offline baseline.** `CHAT_MODELS` is a hand-maintained subset of NaN's published chat models (from `nan.builders/docs/models`): `glm5.3`, `deepseek-v4-flash`, `glm5.3-flash`, `qwen3.8-flash`, `mimo-v2.6-flash`, `gemma4`, `qwen3.6`. Each entry declares what pi needs — context windows conservatively interpreted from the documented 1M/262K/131K labels, text/image inputs (MiMo's documented audio input is deliberately *not* advertised since pi models text/image only), `openai-completions` API, `reasoning: true`, and **zero cost** (NaN access is quota-based, so inventing per-token pricing would be wrong; where no output maximum is published, 8,192 is a conservative configured cap, not NaN's limit).\n\n2. **Live discovery.** `refreshModels` GETs `https://api.nan.builders/v1/models` (3 s timeout, `redirect: \"error\"`, `cache: \"no-store\"`, Bearer key if one is known, nothing logged). It collects the returned `data[].id` set, then **intersects it with the known chat subset** (`knownChatModels`): the live list can only *narrow* the baseline, never introduce an unknown model id. An empty `data` array is authoritative (the intersection is empty); an unusable response (non-OK, malformed, timeout) leaves the current catalog untouched — discovery is best-effort.\n\n3. **Credential scoping.** The catalog is **authoritative only for the credential that discovered it**: if the API key changes between refreshes, the catalog resets to the offline baseline and a `credentialRevision` counter increments, so a live result fetched under an old key can never be published under a new one. The update is published through `context.publish({ update })`, and a stale revision or an aborted signal discards it.\n\nSo the cold/offline state declares documented chat support — explicitly \"not key entitlement\" — while a successful live catalog is the authority for what that key can actually use.\n\n## How it obtains the API key\n\nAuth is **provider-native** (`pi.registerProvider` with `auth.apiKey`), so pi persists only a successful login result and the provider owns the rest:\n\n- **Login:** when the user connects the provider, pi calls the `login` interaction, which prompts for a secret (\"Enter API key\"), trims it, and refuses an empty key.\n- **Resolution at request/refresh time:** `resolve` checks, in order —\n  1. the **stored credential** from the login above, else\n  2. the **`NAN_API_KEY` environment variable**;\n  \n  and returns the key with a `source` of `\"API key\"` or `\"NAN_API_KEY\"` respectively (surfaced in pi's auth UI). No key → `undefined`, so the model list falls back to the offline baseline and requests can't be made.\n\nThe key travels only as a Bearer header to `api.nan.builders` (model discovery and chat calls); discovery failures never log request or response data, since they may contain credentials.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The provider id is \"nan\" and its base URL is https://api.nan.builders/v1.",
+          "supported": false
+        },
+        {
+          "id": "f2",
+          "text": "It starts from a hard-coded offline catalog of seven chat models: glm5.3, deepseek-v4-flash, glm5.3-flash, qwen3.8-flash, mimo-v2.6-flash, gemma4 and qwen3.6.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "Every model uses the openai-completions API, has reasoning enabled and zero cost, and maxTokens 8192 unless set (qwen3.8-flash has 131000).",
+          "supported": false
+        },
+        {
+          "id": "f4",
+          "text": "On refresh (only when network is allowed) it GETs <base>/models with the key as a Bearer token, a 3-second timeout and redirects refused.",
+          "supported": false
+        },
+        {
+          "id": "f5",
+          "text": "The live list only filters the built-in catalog: ids the provider does not already know are dropped, so it never adds unknown models.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "An empty data array is authoritative (no models), while an unusable or failed response leaves the current catalog unchanged.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "The API key comes from the stored credential (entered through the login prompt) first, otherwise from the NAN_API_KEY environment variable.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models returned by the live /models endpoint are added even when they are not in the built-in list.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The key is read only from NAN_API_KEY (or only from stored credentials).",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "9198b1720921c20b",
+      "turnId": "l1-launcher-startup-followup",
+      "question": "When exactly does the launcher take over gentle-pi instead of deferring to a declared package, what role does --package-root play in each home mode, and what does a take-over add to pi's arguments? Answer in English.",
+      "answer": "Read directly from the code; here's the exact decision table.\n\n## When the launcher takes over vs. defers\n\nThe whole declaration/take-over block runs only when there is **no pi subcommand** (`bin/gentle-shell.mjs:1326`; a subcommand would ignore the result anyway). Before that, the launcher reads `<home>/settings.json` and runs `findGentlePiDeclaration` (`lib/gentle-shell-launcher.ts:601`) — available in **every** home mode, not just `--link`. It detects an npm entry `npm:gentle-pi[@version]` or a path entry (string or object `source`) whose own `package.json` has `\"name\": \"gentle-pi\"`, resolved relative to the home's agent dir.\n\nThen `decideTakeOver` (`:633`) decides:\n\n| Situation | Result |\n| --- | --- |\n| No declaration at all | **defer** (false) → plain `-e <packageRoot>` injection |\n| `npm:gentle-pi` declaration, no explicit `--package-root` | **defer** (false) → no injection at all; the declared install is accepted as-is |\n| Path declaration whose realpath **equals** this launcher's package root | **defer** (false) → same as above (the `--link` case with a pi-managed install of this exact checkout) |\n| Path declaration resolving elsewhere | **take over** (true) |\n| Explicit `--package-root` **in link mode** | **take over** (true), even against a matching npm declaration |\n\nSo the two axes are: (a) an npm declaration is always deferred to unless `--package-root` was forced, and (b) a path declaration takes over whenever it points at a *different physical directory* than the running launcher (compared through `safeRealpath` on both sides, so symlinks to the same directory still count as equal).\n\n## What `--package-root` does in each home mode\n\n`--package-root` sets `effectivePackageRoot = resolvePath(args.packageRoot)`; otherwise the launcher uses its own root (`bin:65`). Validation is mode-independent: if the path is not an existing directory it exits 2 before any launch (`bin:1311-1317`), precisely because an unvalidated root would force a take-over and then hand pi `-e` flags pointing at nothing.\n\n- **`--link`**: an explicit `--package-root` sets `packageRootExplicit: home.mode === \"link\" && packageRootExplicit` (`bin:1355`), so it **forces** a take-over — the escape hatch for testing a different checkout on demand, even when the home already declares `npm:gentle-pi`.\n- **`isolated` / `--home <path>`**: it does **not** force a take-over. If the home declares gentle-pi, the flag has no effect and the launcher warns exactly that on stderr (`bin:1341-1346`): the installed package is used and the requested root is ignored. If the home declares nothing, the flag still matters — it just changes which directory is injected as `-e <effectivePackageRoot>` (`buildPiInvocation`'s `declaration === undefined` branch, `:934`), with no `--no-extensions`.\n- Independently of the flag, an `isolated`/`--home` target with a **path declaration pointing elsewhere** follows the same take-over rules as `--link` (comment at `bin:1319-1330`); forcing take-over there would only strip the home's own settings-driven discovery for no benefit.\n\n## What a take-over adds to pi's arguments\n\n`buildPiInvocation`'s take-over branch (`lib/gentle-shell-launcher.ts:911-936`) pushes, in order:\n\n1. `--no-extensions` — this is the load-bearing flag: it drops pi's normal settings-driven extension discovery, which is why the launcher must re-add everything by hand.\n2. `-e <dir>` for each `otherPackagePaths` — every *other* settings package (`otherPackageInjections`, `:696`). Gentle-pi entries are skipped unconditionally (settings can carry more than one), git-sourced packages are skipped with a warning (their install dir isn't derivable without pi's package manager), entries with `extensions`/`autoload` filters are still injected but warned that those filters can't be honored, and non-existent directories are skipped with a warning rather than handed to pi as an unresolvable `-e`.\n3. `-e <file>` (or `-e <dir>` when the loose directory is itself a self-contained extension with a non-empty `pi.extensions` manifest) for each entry from `resolveLooseExtensionEntries` over `<home>/extensions` and `<cwd>/.pi/extensions` (`bin:1370`). This matters because `-e <dir>` on a directory of loose files bypasses pi's discovery pass and fails with \"Cannot find module\".\n4. `-e <effectivePackageRoot>` **last**, so this launcher's copy wins any conflict.\n5. Then the passthrough (`managedHerdrExtensionArgs(home, args)` + user args).\n\nAll `-e` paths are deduped through a `Set` (`:913-933`), including the launcher's own root, so a settings entry resolving to the same directory is never injected twice. The environment is unchanged by take-over: still `PI_CODING_AGENT_DIR` + `GENTLE_PI_AGENT_HOME` = the home dir.\n\nTwo things worth keeping in mind: a take-over is **run-scoped and non-destructive** — settings.json is never rewritten — and it only governs extensions; skills, prompts, and themes still load through ordinary settings discovery (which is exactly what the `extensions`/`autoload`-filter warning tells the user). Finally, when take-over runs, the launcher prints one stderr line naming the source it is taking over from (`npm:gentle-pi`, the declared dir, or \"the requested package root\").",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "An explicit --package-root forces a take-over only in --link mode; in other modes a home that declares gentle-pi keeps its package and the launcher warns that --package-root is ignored.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Without a forced take-over: no declaration or an npm:gentle-pi declaration means no take-over; a path declaration takes over only when its realpath differs from the launcher's package root.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A missing --package-root directory is a launcher error (exit 2).",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "A take-over adds --no-extensions, then -e for every other settings package (git-sourced ones and gentle-pi entries skipped, with warnings for git or filters), then -e for loose extension files from <home>/extensions and <cwd>/.pi/extensions.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "The launcher's own package root is injected last (deduplicated), so it wins conflicts, and a \"taking over gentle-pi\" notice is printed with settings left unchanged.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "--package-root forces a take-over in every home mode.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "A matching npm:gentle-pi declaration is taken over without --package-root.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "e72679486f4860c2",
+      "turnId": "l2-prompt-history",
+      "question": "Explain how Gentle Shell's prompt-history feature works end to end: when capture is enabled, where and in what layout prompts are stored on disk, what a stored entry looks like, how a project's history gets seeded, and how the store is kept from growing into too many files. Answer in English.",
+      "answer": "# Gentle Shell prompt history, end to end\n\nImplementation: `lib/history-capture-policy.ts` (the gate), `extensions/history/index.ts` (event wiring + selector), `extensions/history/store.ts` (paths, registry, writer, drains, seed, GC), `extensions/history/session-scan.ts` (transcript reader), `extensions/history/hide-prompts.ts` (tombstones). Docs: `docs/prompt-history.md`.\n\n## 1. When capture is enabled\n\nCapture is **opt-in and off by default**. The gate is `historyCaptureEnabled()`, re-read **per prompt** so a toggle applies without restart:\n\n- `GENTLE_PI_HISTORY_CAPTURE` wins when it is an explicit value: `1|true|on` → on, `0|false|off` → off (trimmed, case-insensitive). Any other value (unset, empty, junk) defers.\n- Otherwise the persisted Customize preference decides: `<configHome>/history-capture.json`, where `configHome = GENTLE_PI_CONFIG_HOME || ~/.pi/gentle-ai`. Strict schema: `{\"schema\":\"gentle-pi.history-capture/v1\",\"policy\":\"on\"|\"off\"}`; written with `wx` + rename at mode `0600`.\n- No file → off. Malformed/unreadable file → off (fail closed), and Customize refuses to rewrite it.\n\nWhen off, the extension is inert: no registry entry, no store reads/writes, no files; the selector only warns and names the deciding control. Turning it off stops *new* captures and never deletes what is on disk.\n\nWhen on, `index.ts` wires:\n\n- `before_agent_start` → `appendSessionCapture(getWriter(), event.prompt, Date.now())`, swallowing any error so a capture failure can't break the agent loop.\n- `session_shutdown` → `gcProjectDir(...)`.\n- A `setImmediate` warm-up runs migration/registry/seed off the first-prompt path, but only if capture is on.\n\n## 2. Where and how prompts are stored\n\nThe store root is fixed at **`~/.pi/agent/history`** (`AGENT_DIR = <homedir>/.pi/agent`; `PI_HISTORY_ROOT = <AGENT_DIR>/history` — notably independent of `PI_CODING_AGENT_DIR`). Layout:\n\n```\n~/.pi/agent/history/\n├── registry.json                              # advisory hash → cwd map (labels only)\n├── hidden.json                               # deletion tombstones (stateDir)\n├── history-global.jsonl                       # one-time legacy import (never GC'd)\n├── history-global.jsonl.migration-lock/       # mkdir lock held during migration\n└── projects/<hash>/\n    ├── <instanceId>.jsonl                     # one append-only file per pi process\n    ├── seed.jsonl                             # one-time transcript bootstrap\n    └── compact-<pid>-<ts>.jsonl               # older files merged by GC\n```\n\n- **`<hash>`**: first 16 hex chars of `sha256(realpath(cwd))`, falling back to hashing the raw string if the cwd can't be resolved, so symlinked spellings of one project merge. The registry (`ensureRegistryEntry`) maps hash → cwd idempotently; a practically-unreachable hash collision re-keys the existing occupant at 24 chars.\n- **`<instanceId>`**: a per-process `randomUUID()`. This is the core design choice: **one file per pi instance, zero shared writes** — only that instance ever appends to its own file. The file is created lazily on the first capture, so starting pi never litters empty files.\n- **Transient siblings**: `<file>.carry-<pid>-<ts>.jsonl` holds raced bytes a delete rewrite couldn't append back; `<file>.gc-<pid>-<ts>.jsonl` claims a file during compaction; `.tmp-*` are atomic-write staging names.\n- Reads are a **k-way backward merge**: `drainProject` / `drainGlobal` read every `.jsonl`, sort newest-first by a stable key (max entry `ts`, falling back to mtime, so delete rewrites don't reshuffle), then walk each file newest-line-first, deduping by UI identity and capping at the requested limit (default 1000). The legacy global seed is drained last on purpose (least specific source). The selector reads only the store — never the live transcripts.\n\n## 3. What a stored entry looks like\n\nOne JSON object per line, write-through append:\n\n```json\n{\"v\":1,\"text\":\"the prompt as delivered\",\"ts\":1700000000000}\n```\n\n`parseStoreLine` decodes it tolerantly: a missing/non-finite `v` defaults to `1`; `ts` is kept only when finite; a line that is empty, invalid JSON, non-object, non-string, or whitespace-only `text` parses to `null` and is skipped — which also handles a torn last line from a crash. `serializeEntry` emits the compact form and omits `ts` when absent.\n\nCapture-time skips: empty/whitespace-only prompts and command-like prompts (`/^\\/[A-Za-z]/`, i.e. `/name ...` UI commands). Note the store *writer* has no length cap; the 16384-char cap lives in transcript extraction.\n\n## 4. How a project's history is seeded\n\n`bootstrapProjectSeed(root, cwd, sessionsRoot, 500, stateDir=root)`, called once from `getWriter()` (warm-up or first prompt). It writes `projects/<hash>/seed.jsonl` from pi's own session transcripts — read-only; transcripts are never modified.\n\n1. Count entries already in the project dir and collect their identities. If `>= 500` → stop.\n2. If `seed.jsonl` already exists → stop. The seed is **write-once** so a deleted prompt is never resurrected from transcripts.\n3. Read tombstones from `hidden.json`. If untrusted → stop (fail closed); a wrongly seeded prompt would be permanent.\n4. Find this project's transcripts: encode the cwd (`/`→`-`, stripping the leading separator) and keep only session files whose path contains `--<encoded-cwd>--` under `~/.pi/agent/sessions` — one level deep, no recursion into subagent payloads.\n5. Sort newest-first by mtime, then extract prompts per file (`extractPromptsFromFile`): a line-1 header must parse as `type:\"session\"` with `version <= 3` or the file is ignored; per line a cheap `\"role\":\"user\"` prefilter, then JSON parse, then the real rule — entry `type:\"message\"` and `message.role:\"user\"`, text blocks joined with a space; whitespace-only and `> 16384` char prompts are skipped silently.\n6. Walk prompts newest-first, skipping command-like, tombstoned, and already-known identities, collecting exactly `500 - existingCount` entries.\n7. Reverse to chronological (oldest first) and write atomically (tmp + rename).\n\nThe same init path also runs `migrateLegacyStores` — a one-time, `mkdir`-locked import of the v1 `~/.pi/agent/editor-history.jsonl` and the pre-v1 `editor-history.json` array (reversed to chronological) into `history-global.jsonl`, deduped, never replacing a published seed, archiving the array as `.imported` while keeping the JSONL path live for older appenders.\n\n## 5. How the store is kept from becoming too many files\n\nThe per-instance file design means files accumulate across sessions, so `gcProjectDir` compacts at `session_shutdown`, only for opted-in sessions and only for the current project. It is **housekeeping, not retention**: every *visible* prompt is copied; only tombstoned prompts are dropped.\n\nTrigger (`GC_FILE_THRESHOLD = 50`, `GC_LINE_THRESHOLD = 5000`): compact only when the project directory holds **> 50 files or > 5000 valid entries** in total. Then:\n\n- **Protected**: `seed.jsonl` (its existence is the bootstrap gate), any `keepFiles` (the shutting-down instance's own capture file), and the `GC_KEEP_NEWEST = 10` newest files by stable sort key.\n- **Candidates**: everything else, newest-first; if fewer than 2 survive, GC is a no-op — merging one file can't reduce the count, which keeps a permanently-over-threshold directory from being rewritten every shutdown.\n- The oldest candidates are merged into one `compact-<pid>-<ts>.jsonl`, written completely (tmp + rename) **before** any original is removed, `keepVisibleLines` filtering out tombstones. Malformed lines are copied verbatim, matching the delete sweep.\n- **Concurrency-safe claiming**: each candidate is opened (fd kept), then renamed to `<name>.gc-<pid>-<ts>.jsonl`, which still ends in `.jsonl` so drains keep reading it. A live writer appending by path simply creates a fresh file under the original name; anything that landed in the claimed inode after the read is appended to the compact file before the claim is removed. If that append fails, the claim stays on disk with every byte and is merged again later.\n- Fail-closed and loss-free: an untrusted `hidden.json` skips compaction; a file that can't be read is left untouched; if the compact file can't be written, the claims remain readable store files. GC never throws and never blocks shutdown.\n\n`history-global.jsonl` lives outside every project dir and is never touched by GC; `hidden.json` is itself bounded as a recency-ordered cache of at most **1000** tombstone keys (drops the oldest), and deletes are exact `sha256:<digest>` matches on the normalized prompt identity. The only ways prompts leave the store are the selector's delete flow or manual removal.\n\nNet effect: drains cheaply merge many small per-instance files, deletes rewrite individual files atomically and leave a tombstone, and shutdown compaction collapses the old tail of each project into one file so the directory stays roughly bounded at ~50 files / 5000 entries per project.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Capture is opt-in: GENTLE_PI_HISTORY_CAPTURE set to 1/true/on forces it on and 0/false/off forces it off (trimmed, case-insensitive); otherwise the saved preference decides, default off.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The preference lives in <config home>/history-capture.json as {\"schema\":\"gentle-pi.history-capture/v1\",\"policy\":\"on\"|\"off\"}; a missing file means off and a malformed or unreadable one fails closed to off.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The gate is checked per prompt; with capture off nothing is written and the selector only warns.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "The store root is ~/.pi/agent/history; each pi process appends to projects/<hash>/<instance-uuid>.jsonl, where <hash> is the first 16 hex characters of the SHA-256 of the realpath of the cwd.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "Other files: projects/<hash>/seed.jsonl, history-global.jsonl (imported legacy history), registry.json (hash to cwd) and hidden.json (deletion tombstones).",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "Each delivered prompt (before_agent_start) becomes one JSON line {\"v\":1,\"text\":...,\"ts\":...}; empty prompts and slash-command-like prompts are skipped.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "On first init the extension migrates legacy stores, registers the project, then seeds seed.jsonl with up to 500 prompts from this project's pi session transcripts (newest first, skipping commands, tombstoned and duplicate prompts); the seed is written once and never regenerated.",
+          "supported": true
+        },
+        {
+          "id": "f8",
+          "text": "On session shutdown (capture on) it compacts the current project when it has more than 50 files or 5000 entries, keeping the 10 newest files and merging older ones into compact-<pid>-<ts>.jsonl.",
+          "supported": true
+        },
+        {
+          "id": "f9",
+          "text": "Compaction never merges seed.jsonl or the shutting-down session's own file, needs at least two mergeable files, drops tombstoned prompts, and is skipped if hidden.json cannot be trusted.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Prompt history is captured by default.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "Compaction deletes old prompts as a retention limit.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "27edce453ad5c77e",
+      "turnId": "s1-nan-provider",
+      "question": "Gentle Shell ships its own built-in provider for NaN Builders. How does that provider decide which models it offers, and how does it obtain the API key it sends? Answer in English.",
+      "answer": "# The built-in NaN Builders provider\n\nIt lives in `lib/nan-provider.ts` and is registered from `extensions/nan-provider.ts` with a single `pi.registerProvider(createNanProviderConfig())`. The provider id is `nan`, its display name is `NaN`, its base URL is `https://api.nan.builders/v1`, and it speaks pi's `openai-completions` API (obtained lazily through `piAi.lazyApi` → `openAICompletionsApi()`).\n\n## How it decides which models it offers\n\nThe catalog is the **intersection of a maintained hardcoded subset and the provider's live `/models` response** — discovery can only filter, never add.\n\n1. **A maintained chat subset** (`CHAT_MODELS`) from the published docs at nan.builders:\n   `glm5.3`, `deepseek-v4-flash`, `glm5.3-flash`, `qwen3.8-flash`, `mimo-v2.6-flash`, `gemma4`, `qwen3.6`. Each entry is configured statically: display name, input modalities (`text`, or `text`+`image`; MiMo's documented audio input is deliberately not advertised because pi models text/image only), `contextWindow` (1M for most, 1 048 576 for Qwen 3.8 Flash, 262 000 for Gemma 4 / Qwen 3.6), `maxTokens` (131 000 for Qwen 3.8 Flash, otherwise the conservative configured 8 192 cap), `api: \"openai-completions\"`, `reasoning: true`, and `ZERO_COST` (`input/output/cacheRead/cacheWrite = 0`, because NaN access is quota-based and pi requires numeric rates — zero avoids inventing per-token pricing).\n\n2. **This list is the cold/offline baseline.** `OFFLINE_MODELS = CHAT_MODELS` is what `getModels()` returns before any successful discovery. It declares documented chat support, **not** key entitlement.\n\n3. **Live discovery** in `refreshModels(context)`: if `context.allowNetwork` is true, the signal is not aborted, and a `fetch` is available, it GETs `${baseUrl}/models` with `Accept: application/json`, `redirect: \"error\"`, `cache: \"no-store\"`, a 3 s timeout (`NAN_MODELS_TIMEOUT_MS`, overridable via `options.timeoutMs`), and its own `AbortController` linked to `context.signal`. The response must be an object with a `data` array; an **empty `data` array is authoritative** (a valid empty catalog), a non-OK status / bad shape / throw / timeout returns `undefined` and simply leaves the catalog alone. It collects distinct, trimmed, non-empty `id`s.\n\n4. **`knownChatModels(ids)` maps the discovered ids back through `CHAT_MODELS`**, keeping only those that are both live-reported and in the maintained subset. An id the hardcoded list doesn't know is dropped; the live response can never introduce a model. The result is published via `context.publish({ update })`.\n\n5. **Credential binding of the catalog**: `catalogKey` remembers which API key discovered the current catalog. When the key changes, the catalog resets to the offline baseline and `credentialRevision` increments; a discovery result is published only if its revision is still current and the signal is not aborted. A live catalog is therefore authoritative **only for the credential that fetched it** — switching keys discards the previous key's discovery rather than letting it leak into the new one. Every `getModels()` / catalog read returns a deep clone, so callers can't mutate the shared state.\n\n## How it obtains the API key it sends\n\nThe provider declares its own `auth.apiKey` block, so native auth belongs to the provider and pi persists only a successful login result:\n\n- **`login(interaction)`** — interactive: prompts `{ type: \"secret\", message: \"Enter API key\" }`, aborts if the interaction is cancelled, trims the input, throws on an empty key, and returns `{ type: \"api_key\", key }`.\n- **`resolve({ ctx, credential, signal })`** — called at request time. It prefers the **stored credential**: `credential?.key?.trim()`. If that is empty it falls back to the **`NAN_API_KEY` environment variable** through `ctx.env(\"NAN_API_KEY\")`. If neither yields a non-empty key it returns `undefined` (no auth). The returned `source` reports which one won: `\"API key\"` for the stored credential, `\"NAN_API_KEY\"` for the environment fallback.\n- The resolved key is what goes on the wire as `Authorization: Bearer <key>` — for the `/models` discovery fetch (where the header is simply omitted when no key is available) and for the provider's completions stream.\n\nThe subscription-usage feature reuses this same credential: `extensions/gentle-shell.ts` resolves it via `ctx.modelRegistry.getApiKeyForProvider(\"nan\")` and sends the identical `Bearer` key to the quota endpoint, so the provider and the usage panel always agree on which account is being measured.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The provider id is \"nan\" and its base URL is https://api.nan.builders/v1.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "It starts from a hard-coded offline catalog of seven chat models: glm5.3, deepseek-v4-flash, glm5.3-flash, qwen3.8-flash, mimo-v2.6-flash, gemma4 and qwen3.6.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "Every model uses the openai-completions API, has reasoning enabled and zero cost, and maxTokens 8192 unless set (qwen3.8-flash has 131000).",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "On refresh (only when network is allowed) it GETs <base>/models with the key as a Bearer token, a 3-second timeout and redirects refused.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "The live list only filters the built-in catalog: ids the provider does not already know are dropped, so it never adds unknown models.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "An empty data array is authoritative (no models), while an unusable or failed response leaves the current catalog unchanged.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "The API key comes from the stored credential (entered through the login prompt) first, otherwise from the NAN_API_KEY environment variable.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models returned by the live /models endpoint are added even when they are not in the built-in list.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The key is read only from NAN_API_KEY (or only from stored credentials).",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "9fa510496251ee8a",
+      "turnId": "s2-gauge-followup",
+      "question": "With the default cell count, exactly what does the gauge show for 6%, for 94% and for null, and which color role does each one's filled part get? Answer in English.",
+      "answer": "**At the default 8 cells, `renderGauge` + `gaugeTone` give:**\n\n| Input | Clamp | `filled = round(pct/100×8)` | Glyphs | `gaugeTone` | Filled-part role |\n|---|---|---|---|---|---|\n| `6` | 6 | `round(0.48) = 0` | `▱▱▱▱▱▱▱▱` | below 80 → `accent` | **accent — but applied to an empty string** |\n| `94` | 94 | `round(7.52) = 8` | `▰▰▰▰▰▰▰▰` | `>= 80`, `< 95` → `warning` | `warning` (all 8 cells) |\n| `null` | 0 (`?? 0`) | `round(0) = 0` | `▱▱▱▱▱▱▱▱` | `null` → `dim` | **dim — also applied to an empty string** |\n\nTwo details worth flagging:\n\n- **94% rounds up to a full bar.** `7.52` rounds to 8, so the whole gauge is `▰`s while the tone is still `warning` — the color only turns `error` at 95, one point after the bar already reads as 100%.\n- **6% and `null` are visually identical.** Both have `filled = 0`, so `paintGauge` paints the empty run with the `border` role in the same way. The `accent` vs `dim` distinction is real in the returned tone, but it lands on a zero-length string, so nothing on screen differs. The percentage text next to the gauge is what separates them.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "6%: round(0.48) = 0 filled cells, so eight empty ▱; the tone is accent (but nothing is filled).",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "94%: round(7.52) = 8, so all eight cells are ▰, in the warning tone (94 is below the 95 error threshold).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "null: treated as 0%, eight empty ▱ cells, dim tone.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "94% is shown in the error tone.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "6% shows one filled cell.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "51202cf932ba3613",
+      "turnId": "m4-subscription-usage-followup",
+      "question": "For NaN, how is the usage percentage of a model computed, including its rolling window? What happens to the whole snapshot if one metered model is missing tokensUsed? And what does the panel say for a provider outside the supported set? Answer in English.",
+      "answer": "Read-only answer, from the NaN path in `lib/shell-usage.ts` (`nanEffectiveAllowance`, `nanPeriodWindow`, `nanRollingWindow`, `parseNanQuota`, `quotaNumber`, `quotaTimestamp`), `fetchNanUsage` in `extensions/gentle-shell.ts`, and `providerNote`/`renderUsagePanel`.\n\n## How a NaN model's percentage is computed\n\nEach metered model in the `models[]` payload produces one `UsageLimit` named by the model id, containing up to two windows.\n\n**Period (allowance) window.** The allowance is the *full-period* cap:\n\n```ts\nnanEffectiveAllowance = quotaNumber(raw.fullCap, true) ?? quotaNumber(raw.cap, true);\n```\n\n`fullCap` is preferred because `cap` is the allowance of the period in progress and comes back prorated on a first period, while the dashboard divides by the full-period figure. Both must be a finite number `> 0` (`quotaNumber(..., true)`); if neither qualifies, the model is **skipped entirely** — that is not treated as drift, because the dashboard draws nothing for such a model either and live payloads carry them.\n\nWith `tokensUsed = quotaNumber(raw.tokensUsed, false)` (finite, `>= 0`):\n\n```ts\nusedPercent: (tokensUsed / cap) * 100\nwindowSeconds: resetAt === null ? 0 : Math.max(0, Math.round((resetAt - now) / 1000))\nresetAt: quotaTimestamp(model.periodEnd) ?? quotaTimestamp(payload.periodEnd)\nused: tokensUsed, budget: cap\n```\n\nand `limitReached: tokensUsed >= allowance`.\n\n**Rolling window** (only when the model reports usable rolling numbers):\n\n```ts\nused   = quotaNumber(raw.windowTokensUsed, false);          // >= 0\nbudget = quotaNumber(raw.fullWindowTokens, true)            // positive\n      ?? quotaNumber(raw.windowTokens, true)                // positive\n      ?? NAN_DEFAULT_WINDOW_TOKENS (400_000_000);\nhours  = quotaNumber(raw.windowHours, true) ?? NAN_DEFAULT_WINDOW_HOURS (4);\nusedPercent:   (used / budget) * 100\nwindowSeconds: hours * HOUR\nresetAt:       quotaTimestamp(raw.windowResetsAt)\nlabel:         windowLabel(hours * HOUR)                    // e.g. \"4h\"\n```\n\nSo the rolling percentage is window tokens used over the full window budget, using the model's own `windowHours` (defaulting to 4 h) — exactly as the dashboard computes it. The period window comes first and is unlabeled (`NAN_PERIOD_LABEL = \"\"`), because the model id already names it; only a sub-window like the rolling `4h` needs its own label. Raw `used`/`budget` are retained on both windows (a NaN-only feature) so the bar and panel can aggregate by weighting budgets instead of averaging percentages.\n\n## If one metered model is missing `tokensUsed`\n\nThe **whole read fails**, it is not a partial snapshot. In `parseNanQuota`, once a model has already passed the allowance gate:\n\n```ts\nconst tokensUsed = quotaNumber(model.tokensUsed, false);\nif (tokensUsed === undefined) return { provider: NAN_PROVIDER, plan: undefined, limits: [], fetchedAt: now };\n```\n\nThe reason is stated in the code: \"a partial snapshot would understate every aggregate it feeds, so the read fails whole and the last valid snapshot survives instead.\"\n\nConcretely, because `fetchNanUsage` then discards an empty result —\n\n```ts\nconst parsed = parseNanQuota(await response.json(), now);\nreturn parsed.limits.length > 0 ? parsed : undefined;\n```\n\n— no snapshot is recorded at all. The refresh settles with no value, so `refreshProvider` marks the provider failed (`usageFailures.add(provider)`); the **last valid NaN snapshot, if any, stays in the store** and the panel keeps showing its rows with `fetch failed · r to retry` beside it. If there was no previous snapshot, the provider row simply shows the failure note. Contrast the two NaN cases: a model with **no allowance** is silently skipped (not drift), while a model with an allowance whose **usage** cannot be read fails the whole read (drift).\n\n## What the panel says for an unsupported provider\n\n`providerNote` resolves as: the built-in `PENDING_NOTE[provider]`, else a registered source's `pendingNote` (or `\"no usage yet · r to fetch\"`), else `UNSUPPORTED_NOTE = \"no subscription usage for this provider\"`.\n\nFor a provider outside `{openai-codex, anthropic, nan}` with no registered source, and with no snapshot yet, the panel row reads:\n\n```\n<provider> · no subscription usage for this provider\n```\n\nand nothing is fetched for it: `refreshProvider` returns immediately when `!source && provider !== CODEX_PROVIDER && provider !== NAN_PROVIDER`, so it never records a failure and the note stays put. Two things to note:\n\n- A row only appears if the provider is in the current **scope** (`usageScopeProviders`: the session's own provider, then the providers named by the active profile's subagent routing). An unsupported provider that is not in scope is not drawn at all; and if the scope has no rows, the panel shows `USAGE_EMPTY_MESSAGE` (\"No subscription usage yet. Usage arrives with the next response, or press r to fetch it.\").\n- If another extension registers a usage source for that provider, the unsupported note is replaced by that source's `pendingNote` (default `no usage yet · r to fetch`), and the provider becomes fetchable — that is exactly the extension path described earlier.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Period usage = tokensUsed / allowance * 100, where the allowance is fullCap, falling back to cap; models with neither are skipped.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Rolling window = windowTokensUsed / (fullWindowTokens, else windowTokens, else 400,000,000) * 100, over windowHours (default 4).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A metered model without readable tokensUsed makes the whole read return no limits; the fetch then yields nothing, the provider is marked failed and the last valid snapshot survives.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "A model's limit is reached when tokensUsed >= allowance.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "An unsupported provider with no registered source shows \"no subscription usage for this provider\".",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models with readable data are kept while only the broken model is dropped.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "de8ca5e8e0c5e95f",
+      "turnId": "l2-prompt-history-followup",
+      "question": "When Gentle Shell runs with its default isolated home, do the prompt-history store and its transcript seeding follow that home? And when a prompt is deleted from the history selector, what exactly is written to hidden.json and how many entries does that file keep? Answer in English.",
+      "answer": "## 1. Isolated home: the store and seeding do **not** follow it\n\nThis is a deliberate-looking divergence between what Gentle Shell points pi at and what the history extension reads:\n\n- **How the isolated home is selected.** The launcher spawns pi with `PI_CODING_AGENT_DIR` and `GENTLE_PI_AGENT_HOME` set to the resolved home (default `~/.gentle-shell/agent`, overridable with `GENTLE_SHELL_HOME`). It deliberately does **not** redirect `HOME` — `bin/gentle-shell.mjs:294` notes it \"cannot just redirect HOME wholesale\" because some files must stay in the real pi home. Pi itself honors `PI_CODING_AGENT_DIR`, so pi's own sessions/transcripts live under the isolated home.\n\n- **What the history extension reads.** `extensions/history/index.ts` resolves its defaults from `os.homedir()` alone: `AGENT_DIR = join(homedir(), \".pi\", \"agent\")`, hence store root `~/.pi/agent/history` and sessions root `~/.pi/agent/sessions`. It never reads `PI_CODING_AGENT_DIR` or `GENTLE_PI_AGENT_HOME`, and nothing at runtime injects the `agentDir`/`sessionsRoot` deps — those exist for tests. Since the launcher doesn't set `HOME`, `os.homedir()` (which on POSIX honors `HOME`) still returns the real user home.\n\n**Consequences under the default isolated home:**\n\n- The capture store (`registry.json`, `projects/<hash>/*.jsonl`, `history-global.jsonl`, `hidden.json`) stays at the **real** `~/.pi/agent/history`.\n- Transcript seeding scans the **real** `~/.pi/agent/sessions` — not the isolated home's sessions where the current Gentle Shell session's transcripts are actually written by pi.\n- The Customize capture preference also stays in the real `~/.pi/gentle-ai/history-capture.json` (unless `GENTLE_PI_CONFIG_HOME` is set), since that resolver is `GENTLE_PI_CONFIG_HOME || ~/.pi/gentle-ai`.\n\nNote that the statement in `docs/gentle-shell.md` that agent paths follow `GENTLE_PI_AGENT_HOME` → `PI_CODING_AGENT_DIR` → `~/.pi/agent` for \"definitions, config, history, child sessions, and transcripts\" is about **Gentle Agents** (subagent task history, child sessions) — not the prompt-history store.\n\n## 2. What a delete writes to `hidden.json`\n\nWhen you confirm a delete in the selector, after the store sweep it writes one **tombstone** to `<store root>/hidden.json` (the store root doubles as the tombstone state dir):\n\n- **Entry format:** `\"sha256:\" + SHA-256 hex digest` of the prompt's *identity* (`tombstoneKey()` in `extensions/history/hide-prompts.ts`). Identity = whitespace runs collapsed to single spaces, trimmed, lowercased (`promptIdentity()`), never truncated. Hashed, so the file never holds the deleted prompt's text; exact, so prompts merely sharing a prefix get different keys and stay visible.\n- **File shape:** a JSON array of strings, oldest first, written atomically.\n- **Legacy entries honored:** older builds wrote plaintext keys (the first 120 normalized characters, prefix-based). Those are still read with their original meaning (a 120-char entry hides every prompt beginning with it), but new deletions never add them.\n\n## 3. How many entries it keeps\n\n`HIDE_FILE_MAX_ENTRIES = 1000`:\n\n- The file is a **bounded rebuildable cache, not a retention guarantee** — at most 1000 entries in recency order.\n- Deleting the same prompt again moves its entry to the end (recency refresh).\n- Past the cap, the **oldest entry is dropped from the front**. That prompt can then reappear if a copy is still on disk (e.g., in a file that couldn't be rewritten) and can be deleted again.\n- A tombstone hides every copy of its prompt while it exists — including prompts you type again later, which are still captured but remain hidden.\n\nOne more fail-safe worth knowing: if `hidden.json` exists but can't be trusted (unreadable, corrupt, not an array), the whole history path fails closed — the selector blocks with a recovery warning, transcript bootstrap waits, deletes refuse to rewrite it, and compaction is skipped, rather than ever resurfacing hidden prompts.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "No: the store root and the sessions directory used for seeding are hard-coded from the OS home directory as ~/.pi/agent/history and ~/.pi/agent/sessions, ignoring PI_CODING_AGENT_DIR.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The launcher's isolated home is only passed through PI_CODING_AGENT_DIR and GENTLE_PI_AGENT_HOME, which the history extension does not read.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "hidden.json gets \"sha256:\" plus the SHA-256 hex of the normalized prompt (whitespace collapsed, trimmed, lowercased), never the text.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "It keeps at most 1000 keys in recency order; re-deleting moves a key to the end and the oldest keys are dropped past the cap.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The history store lives inside the Gentle Shell home (for example ~/.gentle-shell/agent/history).",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "hidden.json stores the deleted prompt text.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "deca32ac286c8111",
+      "turnId": "s1-nan-provider-followup",
+      "question": "Suppose the live /models call returns only the ids glm5.3-flash and kimi-k3. Which NaN models does pi list afterwards, with which context window, input types and maximum output tokens? And what would the list be if the call returned HTTP 500 instead? Answer in English.",
+      "answer": "## Case 1: live `/models` returns `[\"glm5.3-flash\", \"kimi-k3\"]`\n\n`refreshModels` calls `knownChatModels(ids)`, which does `ids.flatMap(id => CHAT_MODELS.find(m => m.id === id))` — it can only ever emit models from the hardcoded subset, in the live payload's order. So:\n\n- `glm5.3-flash` → found in `CHAT_MODELS`, kept.\n- `kimi-k3` → **not** in `CHAT_MODELS`; it has no config, so it is silently dropped.\n\nPi then lists exactly **one** NaN model (cloned with `provider: \"nan\"`, `baseUrl: https://api.nan.builders/v1`, `api: openai-completions`):\n\n| id | name | input | context window | max output tokens |\n|---|---|---|---|---|\n| `glm5.3-flash` | GLM 5.3 Flash | `[\"text\", \"image\"]` | 1,000,000 | **8,192** |\n\nThe maximum output is the default `maxTokens ?? 8_192`; the 131,000 override belongs only to `qwen3.8-flash`. The entry also carries `reasoning: true` and the all-zero cost (`input/output/cacheRead/cacheWrite = 0`, because NaN access is quota-based).\n\nNote what did *not* happen: the endpoint being authoritative for the *set* does not let unknown ids into the catalog. A live id the maintained subset does not know is ignored, and conversely a known model absent from the live list is dropped (here all the others were).\n\n## Case 2: the call returns HTTP 500\n\n`fetchLiveModelIds` checks `if (!response.ok) return undefined;` — and `undefined` means \"unusable response\", not \"empty catalog\". `refreshModels` then hits:\n\n```ts\nif (revision !== credentialRevision || ids === undefined || context.signal.aborted) return;\n```\n\nso it returns **before** `context.publish(...)` and the catalog is left exactly as it was. A 5xx never empties the list; it degrades to the previous good state.\n\nOn a first refresh, or whenever the resolved credential differs from the one that discovered the current catalog (in which case step 2 already reset `catalog = cloneCatalog(OFFLINE_MODELS)`), that leaves the full offline baseline of **seven** models:\n\n| id | name | input | context window | max output tokens |\n|---|---|---|---|---|\n| `glm5.3` | GLM 5.3 | `[\"text\"]` | 1,000,000 | 8,192 |\n| `deepseek-v4-flash` | DeepSeek V4 Flash | `[\"text\", \"image\"]` | 1,000,000 | 8,192 |\n| `glm5.3-flash` | GLM 5.3 Flash | `[\"text\", \"image\"]` | 1,000,000 | 8,192 |\n| `qwen3.8-flash` | Qwen 3.8 Flash | `[\"text\", \"image\"]` | 1,048,576 | 131,000 |\n| `mimo-v2.6-flash` | MiMo V2.6 Flash | `[\"text\", \"image\"]` | 1,000,000 | 8,192 |\n| `gemma4` | Gemma 4 | `[\"text\", \"image\"]` | 262,000 | 8,192 |\n| `qwen3.6` | Qwen 3.6 | `[\"text\", \"image\"]` | 262,000 | 8,192 |\n\nAll seven also carry `reasoning: true`, zero cost, `api: \"openai-completions\"`, `provider: \"nan\"` and the NaN base URL. If a previous refresh had already published a narrower live catalog for the *same* credential, a later 500 leaves that narrower list in place instead — the current catalog is never modified by a failure.\n\nThe contrast that matters: a successful response with `data: []` is treated as *authoritative* (`knownChatModels([])` → `[]`), so an explicit empty catalog empties the list; a 500 is an unusable response and changes nothing.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Only glm5.3-flash is listed; kimi-k3 is dropped because it is not in the built-in catalog.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "glm5.3-flash keeps its built-in metadata: 1,000,000-token context window, text and image input, maxTokens 8192.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "On HTTP 500 the fetch returns undefined and the catalog is not replaced, so the previous catalog (the offline seven models on a first refresh) stays.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "kimi-k3 appears in the model list.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "An HTTP 500 empties the model list.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "b1430ff0760abe69",
+      "turnId": "m4-subscription-usage-followup",
+      "question": "For NaN, how is the usage percentage of a model computed, including its rolling window? What happens to the whole snapshot if one metered model is missing tokensUsed? And what does the panel say for a provider outside the supported set? Answer in English.",
+      "answer": "Read `lib/shell-usage.ts`, `lib/shell-usage-view.ts`, and the fetch/refresh wiring in `extensions/gentle-shell.ts`, plus the NaN contract tests. Here's how it actually works.\n\n## 1. NaN percentage math\n\nData comes from `GET https://cloud-api.nan.builders/api/usage/quota` (`NAN_QUOTA_URL`, `shell-usage.ts:93`) with `Authorization: Bearer <apiKey>` from `ctx.modelRegistry.getApiKeyForProvider(\"nan\")` — the same key pi already holds. It's the dashboard's own backend and **not** part of NaN's published OpenAPI, so the request is fixed-origin, `redirect: \"error\"`, `cache: \"no-store\"`, every field optional, and nothing logs or persists the key (`gentle-shell.ts:1401`).\n\nEach `models[]` entry becomes one `UsageLimit` named by the model id, holding up to two windows:\n\n**Period window** (`nanPeriodWindow`, `shell-usage.ts:369`)\n\n```\nallowance  = fullCap (>0) ?? cap (>0)          // nanEffectiveAllowance, :361\nusedPercent = tokensUsed / allowance * 100\nused = tokensUsed, budget = allowance           // raw numbers travel for weighting\nlabel = \"\"                                      // the model id names it; no \"period\" text\nresetAt = model.periodEnd ?? payload.periodEnd\nwindowSeconds = resetAt ? max(0, (resetAt - now)/1000) : 0   // time LEFT, not window length\nlimitReached = tokensUsed >= allowance\n```\n\nThe divisor is deliberately `fullCap` first: `cap` is the allowance *of the period in progress* and comes back **prorated** on a first period, so dividing by it would overstate consumption (`shell-usage.ts:358-360`).\n\n**Rolling window** (`nanRollingWindow`, `shell-usage.ts:349`) — exists only if `windowTokensUsed` is a finite number:\n\n```\nbudget = fullWindowTokens (>0) ?? windowTokens (>0) ?? 400_000_000  // NAN_DEFAULT_WINDOW_TOKENS\nhours  = windowHours (>0) ?? 4                                      // NAN_DEFAULT_WINDOW_HOURS\nusedPercent = windowTokensUsed / budget * 100\nwindowSeconds = hours * 3600, label = windowLabel(...) -> \"4h\"\nresetAt = windowResetsAt   // number = unix seconds *1000, or ISO via Date.parse, else null\n```\n\nThe 400M / 4h defaults are the dashboard's own published fallbacks for a payload that reports rolling usage without naming its budget — pinned by `tests/shell-usage.test.ts:228`. So `{cap: 3e9, tokensUsed: 0, windowTokensUsed: 1e8}` → `[\"period:0\", \"4h:25\"]`.\n\n`quotaNumber(value, positive)` is the asymmetry that matters: `positive` (caps, budgets, hours) requires `> 0`, so a `0` cap reads as *no allowance*; non-positive (`tokensUsed`, `windowTokensUsed`) accepts `>= 0`, so **zero usage is a real value, not a missing one**.\n\nAggregates (`glm total`, `nan total`) are `Σused / Σbudget` — never an average of percentages — which is why the raw `used`/`budget` fields exist (`allowanceTotal`, `:430`). `allowanceGroupsSupported` gates all of that to NaN, since only NaN reports allowances; Codex and Anthropic keep their old single row.\n\n## 2. One metered model missing `tokensUsed` → the whole snapshot is discarded\n\n`shell-usage.ts:400-402`:\n\n```ts\nconst tokensUsed = quotaNumber(model.tokensUsed, false);\nif (tokensUsed === undefined) return { provider: NAN_PROVIDER, plan: undefined, limits: [], fetchedAt: now };\n```\n\nNot a `continue`. That model is *metered* (it has a real allowance) but its usage can't be read — that's schema drift, and a partial snapshot would silently understate every family and account total it feeds. Test: `\"parseNanQuota refuses a payload that hides a metered model's usage\"` (`tests/shell-usage.test.ts:455`).\n\nThe chain then makes the failure safe rather than visible-as-wrong:\n\n1. `fetchNanUsage` maps empty limits to `undefined` — `parsed.limits.length > 0 ? parsed : undefined` (`gentle-shell.ts:1412`).\n2. `refreshProvider` sees a settled refresh with no snapshot → adds `nan` to `usageFailures`, **never calls `usage.record`**.\n3. The **last valid snapshot survives** in `UsageStore`; the panel keeps drawing it and appends `fetch failed · r to retry` beside it (`shell-usage.ts:613`). One stale-but-honest meter beats a confidently wrong one.\n\nContrast, same loop: a model with **no allowance at all** is skipped, not fatal — `cap: 0`, missing `cap`, a string `\"3000000000\"`, `{model: \"qwen3.8-flash\", tokensUsed: 10}`, `null`/`7` array entries, empty model id. The dashboard draws nothing for those either and live payloads carry them (`:396-399`). `parseNanQuota({}, NOW)` and `parseNanQuota(undefined, NOW)` return empty limits; it never throws.\n\n## 3. Provider outside the supported set\n\n`SUPPORTED_USAGE_PROVIDERS = [\"openai-codex\", \"anthropic\", \"nan\"]` (`:120`). A provider that is neither built-in nor has a registered source is skipped before any credential lookup or fetch: `if (!source && provider !== CODEX_PROVIDER && provider !== NAN_PROVIDER) return false` (`gentle-shell.ts:1504`). It still occupies a row in scope order, so the panel says *why* it's blank:\n\n```\nproviderNote(provider, registry) = PENDING_NOTE[provider] ?? registry?.note(provider) ?? UNSUPPORTED_NOTE\n```\n\n| Case | Row text |\n| --- | --- |\n| Unknown provider, no source | `openrouter · no subscription usage for this provider` |\n| Codex / NaN, nothing yet | `no usage yet · r to fetch` |\n| Anthropic, nothing yet | `usage arrives with the first response` |\n| Registered source w/ no note | `no usage yet · r to fetch` (its `pendingNote` wins if set) |\n| Refresh ran and answered nothing | `fetch failed · r to retry` — checked first, so it overrides the pending note |\n| Failed refresh, good snapshot held | rows from the snapshot + `fetch failed · r to retry` under them |\n| Store empty, no scope | `No subscription usage yet. Usage arrives with the next response, or press r to fetch it.` |\n\nThe unsupported note is deliberately generic — it names no endpoint, key, or account detail, same as the other notes.\n\n## Extending to an unknown provider\n\nEmit one payload on the shared bus — `pi.events.emit(\"gentle-pi:usage-source/v1\", {...})` with `{ schema: \"gentle-pi.usage-source/v1\", provider, pendingNote?, fetch(apiKey, fetchFn, now) }`. `parseUsageSource` (`:161`) is pure and distrustful: exact schema token, provider must match `/^[A-Za-z0-9][A-Za-z0-9._-]*$/`, `fetch` must be a function, `pendingNote` a string; any mismatch returns `undefined` and the event is dropped before anything fetches. Re-registering the same provider replaces the source (no accumulation across `session_start`s). If the new provider is in the current scope, registration forces exactly one refresh for **that** provider only — no waiting on the 5-minute window or the next turn (`gentle-shell.ts:1588`).\n\nYour `fetch` gets pi's already-resolved API key and the shell's bounded `fetchFn`, and its return value is re-validated by `parseProviderUsage` (`:239`) — `provider` must equal your registered name, `fetchedAt` finite, every window needs `label`/`usedPercent`/`windowSeconds`, `resetAt` null-or-finite, `used`/`budget` optional finite. One bad window drops the whole snapshot. Foreign code degrades exactly like the built-ins: wrapped in a catch, inside the same bounded window (`GENTLE_PI_SHELL_USAGE_TIMEOUT_MS`, default 10s), and behind a per-provider generation counter so a late answer can never overwrite a newer one.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Period usage = tokensUsed / allowance * 100, where the allowance is fullCap, falling back to cap; models with neither are skipped.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Rolling window = windowTokensUsed / (fullWindowTokens, else windowTokens, else 400,000,000) * 100, over windowHours (default 4).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A metered model without readable tokensUsed makes the whole read return no limits; the fetch then yields nothing, the provider is marked failed and the last valid snapshot survives.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "A model's limit is reached when tokensUsed >= allowance.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "An unsupported provider with no registered source shows \"no subscription usage for this provider\".",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models with readable data are kept while only the broken model is dropped.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "486e02ff4c1c5fea",
+      "turnId": "m4-subscription-usage-followup",
+      "question": "For NaN, how is the usage percentage of a model computed, including its rolling window? What happens to the whole snapshot if one metered model is missing tokensUsed? And what does the panel say for a provider outside the supported set? Answer in English.",
+      "answer": "## NaN percentage computation\n\n`parseNanQuota` builds, per metered model, up to two windows:\n\n**Period allowance (the main window):**\n- The allowance is `fullCap ?? cap` — the *full-period* cap is preferred because `cap` is the allowance of the period in progress and comes back **prorated** on a first period, so dividing by it would overstate usage.\n- `usedPercent = tokensUsed / allowance × 100`, with `used` and `budget` carried alongside as raw numbers (so aggregates can weight by budget instead of averaging percentages).\n- The label is the empty string (the model id names the row), `windowSeconds` is the time to `periodEnd` (the model's own, falling back to the payload's top-level `periodEnd`), and `resetAt` is that timestamp.\n\n**Rolling window (optional, on top):** present only if the model reports `windowTokensUsed`. Its budget is `fullWindowTokens ?? windowTokens ?? 400,000,000` (the dashboard's own published fallback) and its length `windowHours ?? 4` hours (also the dashboard's fallback). Percent = `windowTokensUsed / budget × 100`, labeled by window length (e.g. `4h`) via `windowLabel`, reset from `windowResetsAt`.\n\n`limitReached` for the model is `tokensUsed >= allowance`.\n\nA model reporting **no allowance at all** (`fullCap` and `cap` both absent) is *not* an error — it's simply skipped, matching what the NaN dashboard itself draws.\n\n## If one metered model is missing `tokensUsed`\n\nThe **entire snapshot fails, deliberately**. The code comments call this drift: since NaN's rows feed budget-weighted aggregates, a partial snapshot would *understate* every aggregate it feeds, so \"the read fails whole\" — `parseNanQuota` returns `{ provider: \"nan\", limits: [], fetchedAt: now }` instead of a snapshot missing one model. Downstream, `fetchNanUsage` treats an empty-`limits` result as `undefined`, so the refresh marks NaN **failed** (\"fetch failed · r to retry\") while the **last valid snapshot survives** in the `UsageStore` (snapshots are only overwritten on success — the panel keeps the old rows and says the failed refresh beside them).\n\n## Provider outside the supported set\n\nIf the panel's scope includes a provider with no built-in fetcher and no registered usage source, its row renders as:\n\n```\n<provider> · no subscription usage for this provider\n```\n\n(the `UNSUPPORTED_NOTE` from `providerNote`: no built-in pending note, no registry note → the unsupported fallback). It's a plain row naming the provider — no meter, no error, no fetch — because nothing in that session ever targets an endpoint for it. By contrast, a *supported* provider with no data yet shows its pending note instead (\"no usage yet · r to fetch\", or for Anthropic \"usage arrives with the first response\"), and one whose refresh actually settled empty shows \"fetch failed · r to retry\".",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Period usage = tokensUsed / allowance * 100, where the allowance is fullCap, falling back to cap; models with neither are skipped.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Rolling window = windowTokensUsed / (fullWindowTokens, else windowTokens, else 400,000,000) * 100, over windowHours (default 4).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A metered model without readable tokensUsed makes the whole read return no limits; the fetch then yields nothing, the provider is marked failed and the last valid snapshot survives.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "A model's limit is reached when tokensUsed >= allowance.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "An unsupported provider with no registered source shows \"no subscription usage for this provider\".",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Models with readable data are kept while only the broken model is dropped.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "9508049e8ef307d9",
+      "turnId": "l4-telemetry",
+      "question": "How does Gentle Shell handle telemetry? Describe both the per-response runtime usage reporting and the once-per-process telemetry nudge: what triggers each, what is sent and how, which environment variables disable each, and what happens when sending fails or is busy. Answer in English.",
+      "answer": "Gentle Shell has two separate telemetry paths: a per-response **runtime usage report** (anonymous token/model aggregates) and a once-per-process **nudge** of gentle-ai's own telemetry trigger. They share only the kill-switch philosophy; the mechanics differ.\n\n## A. Per-response runtime usage reporting\n\n**Files:** `extensions/runtime-metrics.ts`, `lib/runtime-metrics*.ts`, contract `contracts/telemetry/runtime-aggregate-v1.schema.json`.\n\n**Activation gate.** The extension doesn't even register unless it's a primary process (`GENTLE_PI_AGENTS_CHILD !== \"1\"`) **and** `runtimeMetricsEnvAllows(env)` passes: `DO_NOT_TRACK`, `CI`, and `GITHUB_ACTIONS` must not be truthy — where truthy means *any* non-empty value except `0/false/no/off`, so unknown spellings veto too (fail-closed) — and `GENTLE_AI_TELEMETRY` must not be exactly `\"0\"` after trimming. The receiving binary enforces its own opt-out policy independently; a separate validated policy probe (`gentle-ai telemetry policy --json`, 1-second deadline, strict `gentle-ai.telemetry-policy/v1` shape) exists for policy resolution, and the send ack can come back `disabled`.\n\n**What triggers a send.**\n- `session_start` creates the per-session live state (a single attempt slot, a WeakSet for response dedup, a child set).\n- `before_provider_request` captures the *selection* — provider, model id (each capped at 128 chars) and selected thinking effort — but only for the first provider request of a turn. A second request, compaction, a session-tree event, or turn end marks the turn `ambiguous` and invalidates the selection: only unambiguous turns contribute model evidence.\n- `message_end` on a **finalized assistant response** (not `pending`/`deferred`, deduped by message identity) builds one `FinalResponse`: token usage for input/output/cacheRead/cacheWrite/reasoning/total (only positive safe integers ≤ 1e9 count; anything else is recorded as `unavailable`), stop reason mapped to an error category (`none`/`aborted`/`unknown`), provider-observed model and thinking level.\n- Child-session completions arrive over an internal event (`CHILD_METRICS_EVENT`) and are submitted the same way, plus one child-launch bucket per launch (capped at 256 per session).\n- Each event is aggregated into `RuntimeMetrics` buckets (per model/effort/agent-class, event-local only) and **one deferred attempt** is offered. There are no history reads, no cumulative session accounting, no latency (pi hooks lack request correlation), and no prompt text ever.\n\n**What is sent and how.** `encodeNativeRuntimeEvent` produces a closed-field projection per row — normalized public model id (evidence order: actual response model → selection → SDK-observed; private aliases normalize to `unknown`), agent kind/class, selected and effective effort, launch/response counts, per-token-type coverage counters, error category, duration — JSON under `runtime-aggregate-v1`. The payload must be ≤ 16 KB; an oversized or invalid event is **discarded whole**, never split or queued. It is handed to `gentle-ai telemetry runtime send --json` via stdin (spawn, no shell, 1-second timeout → SIGKILL, stdout capped at 2048 bytes, stderr never retained), and only a strict ack (`gentle-ai.telemetry-runtime-send/v1`, decision `stored|duplicate|discarded|disabled`) is accepted.\n\n**Failure and busy behavior.** There is exactly **one attempt, never a queue and no retry**: a module-level `busy` flag plus `RuntimeMetricsAttempt` mean that if a send is already in flight, the session changed, or the attempt was disposed, the new event is simply discarded. Any transport failure (spawn error, timeout, stderr, malformed ack) yields `discarded` silently — no telemetry error ever reaches the UI or the agent loop. Only **print mode** (`-p`) differs at the end: `session_shutdown` joins the already-accepted attempt for at most 1.5 seconds before tearing down; every other mode disposes immediately.\n\n**Disabled by:** `GENTLE_PI_AGENTS_CHILD=1`, truthy `DO_NOT_TRACK` / `CI` / `GITHUB_ACTIONS`, `GENTLE_AI_TELEMETRY=0`, or the binary's own policy reporting disabled.\n\n## B. The once-per-process telemetry nudge\n\n**Files:** `lib/telemetry-trigger.ts`, wired in `extensions/gentle-ai.ts`'s `before_agent_start`.\n\n**Trigger.** On the first `before_agent_start` of a **primary session** only (the same `isNamedAgent` predicate that gates the orchestrator prompt; children and named agents never nudge), a `processTelemetryTriggerAttempted` flag makes it strictly **one attempt per process** no matter how many sessions or turns follow.\n\n**What happens.** It spawns `<resolved gentle-ai binary> telemetry trigger --json` **detached, fire-and-forget**: stdio ignored, `unref()`'d so it never keeps pi alive, with a 3-second kill timer (itself unref'd) for a runaway child. gentle-pi never awaits it, never reads its output, and never surfaces the outcome. The binary owns everything behind gentle-ai#4309 — install and heartbeat events, the notice, rate limiting, and backoff — and returns a decision like `enrolled`, `sent_install`, `sent_heartbeat`, `rate_limited`, `backoff`, or `disabled`. Users can inspect that decision in the foreground via `/gentle:telemetry status`, which decodes the output against the strict `gentle-ai.telemetry-trigger/v1` contract (wrong schema, unknown decision, or non-JSON → \"nothing to do\").\n\n**Disabled by** — the spawn never happens when any of these is set: `DO_NOT_TRACK=1`, `GENTLE_AI_TELEMETRY=0`, or `CI=true` (exact string matches here, unlike the metrics gate's truthy check).\n\n**Failure behavior:** a missing binary, an older binary without the `telemetry` verb (it prints `unknown telemetry command` and exits non-zero), a spawn error, or a runtime child error all resolve to `{ spawned: false, reason: … }` and are swallowed — the nudge is best-effort by contract and can never affect session activation or anything the user sees.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Runtime usage reporting (extensions/runtime-metrics.ts) is inert in child sessions and when the environment vetoes it.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Runtime veto: DO_NOT_TRACK, CI or GITHUB_ACTIONS set to any value other than empty, 0, false, no or off, or GENTLE_AI_TELEMETRY=0.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "Each finalized assistant message (message_end) produces event-local rows with token counts and the model/effort captured at before_provider_request; child completions arrive on the gentle:runtime-metrics:child/v1 event, capped at 256 children per session.",
+          "supported": false
+        },
+        {
+          "id": "f4",
+          "text": "Sending spawns gentle-ai telemetry runtime send --json with the JSON payload on stdin; payloads over 16 KiB are discarded.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "The payload carries model, effort, agent class, token coverage, duration and an error category, not prompts, responses or paths.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "One attempt at a time: while an attempt is busy new events are discarded, never queued, and failures are never retried.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "The send process is killed after 1 second; only the acknowledgements stored, duplicate, discarded and disabled are recognized, with stdout capped at 2048 bytes.",
+          "supported": true
+        },
+        {
+          "id": "f8",
+          "text": "In print mode shutdown waits up to 1.5 s for the accepted attempt; otherwise shutdown cancels immediately.",
+          "supported": true
+        },
+        {
+          "id": "f9",
+          "text": "The nudge: on the first primary-session before_agent_start in the process (not named agents or children), Gentle spawns gentle-ai telemetry trigger --json detached with stdio ignored, a 3-second kill timer, and swallows every failure.",
+          "supported": true
+        },
+        {
+          "id": "f10",
+          "text": "The nudge is skipped only for exact values DO_NOT_TRACK=1, GENTLE_AI_TELEMETRY=0 or CI=true.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Unsent telemetry is stored on disk or queued for a later retry.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "Gentle Shell probes the telemetry policy (gentle-ai telemetry policy) before each runtime send; that helper exists but nothing calls it.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "a8817db7a7bce23c",
+      "turnId": "s1-nan-provider-followup",
+      "question": "Suppose the live /models call returns only the ids glm5.3-flash and kimi-k3. Which NaN models does pi list afterwards, with which context window, input types and maximum output tokens? And what would the list be if the call returned HTTP 500 instead? Answer in English.",
+      "answer": "Read-only answer, applying `knownChatModels` / `CHAT_MODELS` / `OFFLINE_MODELS` in `lib/nan-provider.ts`.\n\n## Live `/models` returns `[\"glm5.3-flash\", \"kimi-k3\"]`\n\n`knownChatModels(ids)` is an intersection filter: `ids.flatMap(id => CHAT_MODELS.find(m => m.id === id) ? [clone] : [])`. So `glm5.3-flash` survives and **`kimi-k3` is dropped** — it is not in the curated catalog, and live discovery can only narrow that list, never extend it.\n\nPi lists exactly **one** NaN model afterwards:\n\n| id | name | context window | input | max output |\n|---|---|---|---|---|\n| `glm5.3-flash` | GLM 5.3 Flash | 1 000 000 | text, image | 8 192 |\n\nplus the fixed per-model attributes: `api: \"openai-completions\"`, `reasoning: true`, zero-cost rate table, `provider: \"nan\"`, `baseUrl: \"https://api.nan.builders/v1\"`. The 8 192 output cap is the provider's own conservative configured default (`maxTokens ?? 8_192`), not a NaN-published limit — `glm5.3-flash` has no documented output maximum.\n\n## If the call returns HTTP 500\n\n`fetchLiveModelIds` hits `if (!response.ok) return undefined`, and `refreshModels` then bails out without publishing:\n\n```ts\nif (revision !== credentialRevision || ids === undefined || context.signal.aborted) return;\n```\n\nA failed fetch never clears or truncates the catalog — it is a no-op on the model list. What Pi lists is therefore whatever the provider already had, with one nuance from the credential check that runs *before* the fetch:\n\n```ts\nif (apiKey !== catalogKey) { catalogKey = apiKey; credentialRevision++; catalog = cloneCatalog(OFFLINE_MODELS); }\n```\n\n- **Cold start / no live catalog yet for this credential:** the catalog is `OFFLINE_MODELS`, i.e. the full **seven-model offline baseline**:\n\n| id | name | context window | input | max output |\n|---|---|---|---|---|\n| `glm5.3` | GLM 5.3 | 1 000 000 | text | 8 192 |\n| `deepseek-v4-flash` | DeepSeek V4 Flash | 1 000 000 | text, image | 8 192 |\n| `glm5.3-flash` | GLM 5.3 Flash | 1 000 000 | text, image | 8 192 |\n| `qwen3.8-flash` | Qwen 3.8 Flash | 1 048 576 | text, image | 131 000 |\n| `mimo-v2.6-flash` | MiMo V2.6 Flash | 1 000 000 | text, image | 8 192 |\n| `gemma4` | Gemma 4 | 262 000 | text, image | 8 192 |\n| `qwen3.6` | Qwen 3.6 | 262 000 | text, image | 8 192 |\n\n- **Same credential as the one that built a live catalog:** the previous live list stays untouched (so in the scenario above, still just `glm5.3-flash`).\n- **Credential changed in this same refresh:** the catalog first resets to `OFFLINE_MODELS`, and the failed fetch leaves it there — the seven-model baseline.\n\nSo an HTTP 500 changes nothing by itself; it only means the refresh did not apply. The seven-model baseline appears whenever no successful live catalog exists for the current credential.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Only glm5.3-flash is listed; kimi-k3 is dropped because it is not in the built-in catalog.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "glm5.3-flash keeps its built-in metadata: 1,000,000-token context window, text and image input, maxTokens 8192.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "On HTTP 500 the fetch returns undefined and the catalog is not replaced, so the previous catalog (the offline seven models on a first refresh) stays.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "kimi-k3 appears in the model list.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "An HTTP 500 empties the model list.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "d4c3678028215296",
+      "turnId": "m3-command-palette",
+      "question": "How does Gentle Shell's command palette work? Explain how it is opened, which commands it lists and how that list is built, how the list is filtered as the user types, and what happens when an entry is chosen. Answer in English.",
+      "answer": "# The Gentle Shell command palette\n\n## How it's opened\n\nTwo entry points, both requiring an interactive UI (`ctx.hasUI`, otherwise a silent no-op):\n\n- the `/gentle:commands` slash command;\n- a keyboard shortcut, `alt+k` by default, configurable through `GENTLE_PI_COMMANDS_KEY`: an unset variable means `alt+k`, an empty value or `off` (case-insensitive) disables the shortcut entirely, and anything else is used verbatim. `ctrl+k` is deliberately avoided as a default — pi's editor reserves it for delete-to-line-end, so an extension shortcut there would be skipped.\n\nIt opens as a centered overlay card (70% width, min 60 columns, max 85% of the terminal height, minimum 12 total rows) via `ctx.ui.custom`, with a repaint wrapper so the TUI refreshes around the overlay.\n\n## Which commands it lists and how the list is built\n\nThe palette is a **curated catalog, not a raw dump** of every registered command (`lib/command-palette-catalog.ts`). The catalog defines four groups in fixed order — **Configuration** (models, profiles, persona, review mode, background subagents, double-esc-cancel, customize, animations, vim, telemetry, banner options, dev binary…), **Session** (YOLO, changes, subagents, usage, review session permission), **Diagnostics** (status, doctor), and **Skills** (skill-registry refresh).\n\n`buildCommandPaletteGroups` then intersects the catalog with reality at open time:\n\n- it looks up each catalog entry in `pi.getCommands()` and **keeps only entries actually registered** — a missing or failed extension never shows a dead row;\n- it attaches the registration's **live description** and an optional **shortcut hint** (currently `gentle:changes` and `gentle:agents`, resolved from the same env-driven shortcut config the real shortcuts use);\n- any group left with no items is dropped; catalog order is preserved throughout.\n\nIf the intersection is empty, the open flow shows \"No Gentle commands are registered.\" instead of an empty palette.\n\n## How the list is filtered as you type\n\nEvery keystroke (single printable BMP characters only — pastes and surrogate pairs are deliberately ignored) updates the query, resets the selection to the top, and re-ranks via `rankPaletteGroups`. Matching is case-insensitive on the trimmed query, with a five-tier ranking per item:\n\n0. label starts with the query\n1. label contains the query\n2. label matches as a **subsequence** (fuzzy: `mdl` matches \"Assign **m**o**d**els\")\n3. command name contains the query\n4. description contains the query\n\nWithin a group, ties keep input order (stable sort); groups are never reordered relative to each other, and a group with no surviving items disappears entirely. Empty/whitespace query → everything, unchanged. No matches renders `No commands match \"…\"`. Rendering shows each group's title, the item label left-aligned with the shortcut hint right-justified, the selected row as either a full-width `selectedBg` bar (when the theme supports backgrounds) or a `▸` marker, with `↑ N more` / `↓ N more` indicators and a centered scrolling window when the list exceeds the height budget.\n\nNavigation: `↑`/`↓` (or `ctrl+k`/`ctrl+j` — checked before Enter, since a bare line feed is both ctrl+j and an Enter synonym on non-Kitty terminals) move the selection with clamping; `backspace` edits the query; `ctrl+u` clears it.\n\n## What happens when an entry is chosen\n\n`Enter` (or Return) resolves the selected item across the *currently filtered* groups and finishes the overlay with `{type: \"run\", name: item.command}`. Back in `showCommandPalette`, a `run` result executes:\n\n```ts\npi.sendUserMessage(`/${result.name}`, { expandPromptTemplates: true });\n```\n\n— the command is injected **exactly as if the user had typed the underlying slash command**, including prompt-template expansion, going through pi's normal message pipeline rather than invoking any handler directly. `Esc` or `ctrl+c` finishes with `{type: \"close\"}` and nothing is run. The overlay is a one-shot: once `done` fires, further input is ignored.\n\nThat's the whole design contract: the palette component is pure (it knows groups of `{command, label, description?, shortcut?}` and nothing about the extension API, so it's testable without a session), the catalog is curated and order-stable, filtering is local ranking with no async sources, and execution delegates to pi's own command dispatch.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "It opens with /gentle:commands or the alt+k shortcut; GENTLE_PI_COMMANDS_KEY overrides the key and an empty value or off disables it (ctrl+k is reserved by pi's editor).",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "It shows a curated catalog, not every registered command, in the groups Configuration, Session, Diagnostics and Skills.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "Only catalog commands that are actually registered appear, with the registration's live description; empty groups are dropped and catalog order is kept.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "Shortcut hints are attached for gentle:changes and gentle:agents.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "Without a UI it does nothing; with no matching registered commands it notifies \"No Gentle commands are registered.\"",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "Filtering is case-insensitive on the trimmed query and ranks items: 0 label prefix, 1 label substring, 2 label subsequence, 3 command name substring, 4 description substring; non-matching items are hidden.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "Groups are never reordered relative to each other; ranking is a stable sort within each group and empty groups disappear.",
+          "supported": true
+        },
+        {
+          "id": "f8",
+          "text": "Choosing an entry sends /<command> as a user message, as if the user had typed the slash command.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The palette lists every registered extension command.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The palette has an SDD group (a stale code comment says so, but the catalog has none).",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "229b47a360a0ea70",
+      "turnId": "l1-launcher-startup-followup",
+      "question": "When exactly does the launcher take over gentle-pi instead of deferring to a declared package, what role does --package-root play in each home mode, and what does a take-over add to pi's arguments? Answer in English.",
+      "answer": "Verified — the subagent's mapping is consistent with the source. Here is the answer.\n\n# Take-over vs. defer: the exact rules\n\n## 1. When does the launcher take over?\n\n`decideTakeOver` (`runtime/gentle-shell-launcher.mjs:634`) is a short decision table:\n\n```js\nif (input.packageRootExplicit) return true;   // but see §2 — link-mode only\nif (input.declaration === undefined) return false;\nif (input.declaration.kind === \"npm\") return false;\nreturn realDeclaredDir !== input.realPackageRoot;\n```\n\nSo take-over happens in exactly two situations:\n\n1. **A different gentle-pi is declared as a path package.** `findGentlePiDeclaration` (`:602`) scans settings.json `packages` (parsed by `parseSettingsPackages`, `:505`): an `npm:gentle-pi` / `npm:gentle-pi@…` source is an npm declaration; a path source whose `package.json` name is `\"gentle-pi\"` is a path declaration. Take-over fires only when that path declaration's realpath differs from the launcher's own package root — a symlink pointing at the same directory does **not** count as different. An npm declaration is **never** taken over: it's accepted as-is.\n2. **`--package-root` forces it — but only in `--link` mode.** The caller gates it: `packageRootExplicit: home.mode === \"link\" && packageRootExplicit` (`bin/gentle-shell.mjs:1348`).\n\n**Nothing declared** → no take-over; the launcher simply injects its own package root (case 3 below).\n\n## 2. What `--package-root` does in each home mode\n\nParsing (`parseLauncherArgs`): accepts `--package-root=<v>` or `--package-root <v>`; empty/missing → hard error. It's a launcher flag, never passed through to pi.\n\n- **Without the flag**: the effective root is the launcher's own root, `dirname(dirname(import.meta.url))` (`:67`).\n- **With the flag**: `effectivePackageRoot = resolvePath(args.packageRoot)` (`bin/gentle-shell.mjs:1295-1296`); if it isn't a directory, the launcher fails fast (`:1302-1304`).\n\nPer home mode:\n\n- **`--link`**: `--package-root` does double duty — it changes the injected root **and forces take-over** (`:1348`). Rationale: the link home is pi's real installation with a pre-existing settings-driven package list, so pi must be stripped of autodiscovery (`--no-extensions`) and rebuilt explicitly.\n- **`--isolated` / `--home <path>`**: `--package-root` only changes **which** root is injected; it never forces take-over. If a gentle-pi declaration exists, the declared package wins and the flag is **ignored**, with a stderr warning: *\"--package-root only forces a take-over in --link mode; … the installed package is used and `<path>` is ignored\"* (`:1337-1341`). The comment at `:1320-1326` explains why: non-link homes have no pre-existing pi installation to defer to, so `--no-extensions` there would only strip pi's own settings-driven discovery for no benefit.\n\n## 3. What take-over adds to pi's arguments\n\n`buildPiInvocation` (`runtime/gentle-shell-launcher.mjs:911`) has four ordered cases:\n\n1. **pi subcommand present** → no injection at all; pi must see the bare subcommand as argv[0].\n2. **Take-over** → arguments in this exact order, all deduped through one `Set`:\n   1. `--no-extensions` (strips pi's normal package autodiscovery);\n   2. `-e <dir>` for every **other settings package** (`otherPackageInjections`, `:697` — npm dirs resolved under `<home>/npm/node_modules/<pkg>`, path dirs via the agent dir; gentle-pi npm entries skipped unconditionally, git-sourced packages warned and skipped, and the declared/skip gentle-pi dir excluded);\n   3. `-e <entry>` for each **loose extension** — from `<home>/extensions` and `<cwd>/.pi/extensions`; a directory with its own `pi.extensions` manifest counts as one whole entry, otherwise each direct `*.ts/*.js/*.mjs` file and `<subdir>/index.*` is picked up sorted, excluding dotfiles and `*.d.ts`;\n   4. `-e <packageRoot>` last — the launcher's own (or `--package-root`) root, skipped if already covered by the dedupe set.\n3. **No declaration, no take-over** → exactly one injection: `-e <packageRoot>`. Pi does its own discovery for everything else.\n4. **Declared package (npm or identical path), no take-over** → no injection; settings already load gentle-pi.\n\nFinally, passthrough args are appended after all injection — including the managed Herdr bridge `-e <…/herdr-agent-state.ts>` in isolated TTY sessions — and the child env gets `PI_CODING_AGENT_DIR` / `GENTLE_PI_AGENT_HOME` set to the resolved home (`:979-981`).\n\nIn short: the launcher defers whenever settings already declare a gentle-pi (npm always, path if it's the same directory); it takes over when a *different* path-declared gentle-pi is installed or when `--package-root` is forced in `--link` mode — rebuilding pi's extension list explicitly so its own package loads last, on top of everything else.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "An explicit --package-root forces a take-over only in --link mode; in other modes a home that declares gentle-pi keeps its package and the launcher warns that --package-root is ignored.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Without a forced take-over: no declaration or an npm:gentle-pi declaration means no take-over; a path declaration takes over only when its realpath differs from the launcher's package root.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A missing --package-root directory is a launcher error (exit 2).",
+          "supported": false
+        },
+        {
+          "id": "f4",
+          "text": "A take-over adds --no-extensions, then -e for every other settings package (git-sourced ones and gentle-pi entries skipped, with warnings for git or filters), then -e for loose extension files from <home>/extensions and <cwd>/.pi/extensions.",
+          "supported": false
+        },
+        {
+          "id": "f5",
+          "text": "The launcher's own package root is injected last (deduplicated), so it wins conflicts, and a \"taking over gentle-pi\" notice is printed with settings left unchanged.",
+          "supported": false
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "--package-root forces a take-over in every home mode.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "A matching npm:gentle-pi declaration is taken over without --package-root.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "ffcc348dead49427",
+      "turnId": "l2-prompt-history-followup",
+      "question": "When Gentle Shell runs with its default isolated home, do the prompt-history store and its transcript seeding follow that home? And when a prompt is deleted from the history selector, what exactly is written to hidden.json and how many entries does that file keep? Answer in English.",
+      "answer": "## Part 1 — Isolated home: no, the store does not follow it\n\nThe launcher's default `--isolated` home is `~/.gentle-shell/agent` (overridable with `GENTLE_SHELL_HOME`), and when it spawns pi it sets `PI_CODING_AGENT_DIR` and `GENTLE_PI_AGENT_HOME` to that home in the child env (`lib/gentle-shell-launcher.ts:946`). But the prompt-history extension never consults those variables:\n\n- `extensions/history/index.ts:127-133` derives its paths straight from `os.homedir()`:\n  - `AGENT_DIR = ~/.pi/agent`\n  - `PI_HISTORY_ROOT = ~/.pi/agent/history`\n  - `SESSIONS_ROOT = ~/.pi/agent/sessions`\n- The extension exposes `deps.root` / `deps.agentDir` / `deps.sessionsRoot` injection points, but they exist for tests — the live default export receives only `pi`, so the defaults always apply. Notably, the codebase *has* a home-resolver that would honor the isolated home (`resolveGentlePiAgentHome` in `lib/agent-home.ts` reads `GENTLE_PI_AGENT_HOME || PI_CODING_AGENT_DIR || ~/.pi/agent`), and the history extension deliberately does not use it.\n\nConsequences under the isolated home:\n\n- The store, its project files, `registry.json`, `seed.jsonl`, compaction products, **and `hidden.json`** (the tombstone state dir is the store root itself) all stay in the real `~/.pi/agent/history`.\n- Transcript seeding scans `~/.pi/agent/sessions` — the shared/real home's sessions — not `~/.gentle-shell/agent/sessions`.\n- The capture preference is likewise shared, not per-home: `gentlePiConfigHome(env)` resolves to `GENTLE_PI_CONFIG_HOME || ~/.pi/gentle-ai` (`lib/agent-home.ts:14`), and the launcher doesn't set `GENTLE_PI_CONFIG_HOME`, so the Customize toggle governs every home.\n\nSo the history feature is effectively global across isolated and linked homes, by construction rather than by accident of env.\n\n## Part 2 — What a delete writes to `hidden.json`, and its size\n\nThe write lives in `hidePrompt()` (`extensions/history/hide-prompts.ts:160`), called only after the store copies were removed by the selector's two-step delete:\n\n**What is written**\n\n- One string per deleted prompt: `\"sha256:\" + hex(SHA-256(normalized prompt))` (`tombstoneKey`, line 30). The normalization is the shared delete identity: whitespace runs collapsed, leading/trailing trimmed, letter case ignored.\n- **No plaintext for new deletions** — the file doesn't retain the text of deleted prompts. (Legacy plain-text entries from earlier builds — the first 120 normalized characters — are still read and honored: a <120-char entry hides that exact prompt, a 120-char entry hides every prompt starting with it. New deletions never add that format.)\n- The file is a JSON **array of strings, oldest first**, kept in insertion order (no sort), rewritten via the shared atomic temp-file + rename writer.\n\n**How many entries**\n\n- Capped at **1000** (`HIDE_FILE_MAX_ENTRIES = 1000`, line 55). After appending the new key, entries are dropped **from the front** (oldest) until the file fits.\n- Re-deleting the same prompt refreshes its entry to the **end** (delete + add on the recency-ordered set), so the 1000 most recently deleted prompts are the ones remembered.\n\n**Behavioral edges worth knowing**\n\n- It's a **bounded cache, not a retention guarantee**: a tombstone evicted past 1000 lets its prompt reappear if a copy is still on disk, and you can delete it again.\n- The tombstone hides every copy of that prompt — including one you type again later — and transcript bootstrap and compaction both filter on it.\n- It fails closed: an unreadable/corrupt/non-array `hidden.json` blocks history entirely and `hidePrompt` refuses to write (never silently resets), until you restore or delete the file yourself.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "No: the store root and the sessions directory used for seeding are hard-coded from the OS home directory as ~/.pi/agent/history and ~/.pi/agent/sessions, ignoring PI_CODING_AGENT_DIR.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The launcher's isolated home is only passed through PI_CODING_AGENT_DIR and GENTLE_PI_AGENT_HOME, which the history extension does not read.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "hidden.json gets \"sha256:\" plus the SHA-256 hex of the normalized prompt (whitespace collapsed, trimmed, lowercased), never the text.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "It keeps at most 1000 keys in recency order; re-deleting moves a key to the end and the oldest keys are dropped past the cap.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The history store lives inside the Gentle Shell home (for example ~/.gentle-shell/agent/history).",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "hidden.json stores the deleted prompt text.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "c61f3a5b60637d56",
+      "turnId": "m2-esc-handling-followup",
+      "question": "If GENTLE_PI_DOUBLE_ESC_CANCEL=on is set but the global policy file contains {\"schema\":\"gentle-pi.double-esc-cancel/v1\",\"policy\":\"on\",\"note\":\"x\"}, what is the effective policy and which source is reported? And if the user edits that file by hand mid-session, when does the Esc gate notice the change? Answer in English.",
+      "answer": "Verified. Here's the answer:\n\n## Effective policy with env `on` + the annotated file\n\n**Effective policy: `off` — the env var is never consulted.** The decoder is strict about the exact key set (`lib/double-esc-cancel-policy.ts:57-72`):\n\n```ts\nif (parsed.schema !== DOUBLE_ESC_CANCEL_SCHEMA) return undefined;\nif (parsed.policy !== \"on\" && parsed.policy !== \"off\") return undefined;\nif (Object.keys(parsed).length !== 2) return undefined;   // extra keys rejected\n```\n\nYour file has three keys, so `parseDoubleEscCancelPolicyFile` returns `undefined` — the `note` field alone makes it malformed. And because the file *exists*, the precedence branch short-circuits before the env lookup (`:105-113`):\n\n```ts\nif (globalFileExists) {\n    ...\n    return decoded === undefined\n        ? { policy: \"off\", source: \"global_file\", malformed: true, ... }\n        : ...\n}\n```\n\nSo with `GENTLE_PI_DOUBLE_ESC_CANCEL=on` and that file present, you get `policy: \"off\"`, **source reported as `\"global_file\"`**, with `malformed: true` — a present-but-unusable file \"claims the decision\" and fails closed rather than falling through to env (rationale comment: unreadable and unusable are indistinguishable at this layer, and both must fail closed on the file that claimed the decision). Pinned by `tests/double-esc-cancel-policy.test.ts:135-144` and `:188-199`. A single Esc while the agent works will therefore abort immediately, as with the default.\n\n## When a mid-session hand-edit is noticed\n\n**Not automatically — only on command or reload.** The policy is resolved exactly once at registration (`extensions/gentle-shell.ts:1684-1687`) into an in-memory variable; the Esc gate reads only that cached value (`:1834` — `doubleEscCancelEnabled: () => doubleEscCancelPolicy === \"on\"`). There is no mtime check and no per-keypress re-resolution. The resolver is called again only inside `/gentle:double-esc-cancel` (`:2287-2301`), which deliberately re-caches \"what the file actually resolves to, not what was written\" — so if your hand-edited file is malformed, running the command reports the fail-closed result too. Otherwise the change takes effect only after a session reload.\n\nPractical upshot: to make that file effective you'd remove the `\"note\"` key and run `/gentle:double-esc-cancel` (or restart/reload); then the file's `policy: \"on\"` wins over the env var, since the global file is the top of the precedence order.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The extra key fails the strict decode (exactly two keys), so the policy is off, attributed to the global file and marked malformed.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The env var is ignored because an existing file decides, even when malformed.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The policy is resolved once at startup and cached; a hand edit is picked up only when /gentle:double-esc-cancel runs (it re-reads the file first) or the extension loads again.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The policy is on because the environment variable says on.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The file is re-read on every key press.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "28f6fc2d914569d4",
+      "turnId": "l3-bash-guard",
+      "question": "When the agent runs a shell command through the bash tool, how does Gentle Shell decide whether to allow it, ask for confirmation, or block it? Cover the order of the checks, which commands are recognized, the configuration that changes the outcome, how delegated child sessions differ, and what the YOLO session mode changes. Answer in English.",
+      "answer": "# How Gentle Shell decides `allow` / `ask` / `block` for bash\n\nThe primary decision path is the `pi.on(\"tool_call\", …)` handler in `extensions/gentle-ai.ts`; the lexical recognizer is `lib/destructive-command-guard.ts`; the child path is `extensions/child-safety.ts`; YOLO is `lib/yolo-session-policy.ts`. Everything below applies only to calls of the **`bash` tool** (plus a separate path guard for `read`/`write`/`edit`); direct process execution, MCP tools, and other tools never reach this boundary.\n\n## Order of checks\n\n**Handler entry** (`gentle-ai.ts`, the `tool_call` hook):\n\n1. Compute `primaryToolCall` (subagent depth 0) and `yoloActive = primaryToolCall && await yolo.active(ctx)`.\n2. **Sensitive-path guard** — `evaluateSensitivePathTool` for `read`/`write`/`edit` only: any input path matching `.ssh`, `.credentials`, `library/keychains`, `.aws/credentials`, `.config/gh/hosts.yml`, `secrets`, `.env*`, `*.pem|key|p12|pfx` → hard **block**. This runs before the bash branch.\n3. `subagent_run` dispatch validation (judgment-day fix agent, unscoped writer, review candidate view).\n4. Not `bash` → allow. `bash` with no string command → allow.\n5. **Child short-circuit**: if `GENTLE_PI_AGENTS_CHILD=1`, `blockChildDestructiveCommand(command)` → hard **block** on any recognized destructive command. If it doesn't match, fall through.\n6. `confirmCommand(command, ctx, …, yoloActive)`.\n\n**Inside `confirmCommand`:**\n\n1. `loadRuntimeGuardrailsConfig(ctx.cwd)`.\n2. `evaluateGuardedCommand(command, config)` — the non-negotiable classification order:\n   1. A recognized destructive match with `hardDeny` → **block** (never overridable by any config).\n   2. Legacy `DENIED_BASH_PATTERNS` regex match → **block**.\n   3. A configured `\"block\"` among the matched guard keys → **block** (outranks data-loss confirmation).\n   4. A recognized **data-loss** match of kind database/filesystem (`kind !== \"git\"`) → **confirm** with `dataLoss: true`.\n   5. Remaining matches: `block` > `confirm` > `allow` (first match by trigger order).\n   6. Nothing matched → `not-guarded` → **allow**.\n3. YOLO restriction overlay: if YOLO is active and a `gitPush` match exists, `yoloPushConfiguredRestriction()` re-reads both config layers; `block` wins, otherwise a configured non-`allow` becomes `confirm`. Final `classification = block if evaluation.action === \"block\" || restriction === \"block\", else restriction ?? evaluation.action`.\n4. `block` → block; `not-guarded` / `allow` → allow; then the YOLO push waiver (below); otherwise it is a `confirm`.\n5. `confirm` means: if `ctx.hasUI` is false → **block** (\"requires interactive confirmation\"). With UI, emit the permission-request lifecycle (`waiting` → `approved`/`denied`, plus the Herdr blocked label), show `ctx.ui.confirm(title, preview)`, and accept **only a literal `true`**. Cancellation, any other answer, or a dialog error cannot authorize execution; a thrown error is rethrown. Approval is never cached.\n\nThe `collectGuardedMatches` step already decided each key's action: with `autonomousMode: false` every guard key resolves to `\"confirm\"` (mirroring the legacy confirm patterns); with `autonomousMode: true` it uses `guardedCommands[key] ?? AUTONOMOUS_DEFAULT_ACTIONS[key]`.\n\n## Which commands are recognized\n\nTwo layers feed the decision.\n\n**Guard keys** (regex, the configurable layer):\n\n| Key | Pattern | Autonomous default |\n|---|---|---|\n| `gitPush` | `git [global-flags] push` | `allow` |\n| `gitRebase` | `git rebase` | `confirm` |\n| `gitBranchDeleteForce` | forced/`-D` branch deletion | `confirm` |\n| `npmPublish` | `npm publish` | `block` |\n| `piRemove` | `pi remove` | `confirm` |\n\n**Hard denies and the shared lexical recognizer** (`recognizeDestructiveCommands`), which tokenizes with quoting, literal heredocs, and the separators `; && || | & \\n ( )`, skips leading assignments and the wrappers `env`, `sudo`, `command`, `exec`, `nohup`, `timeout`, `xargs` (including their option arguments), and recurses into `sh|bash|zsh|dash -c` payloads, `find -exec/-execdir`, and nested wrappers up to depth 4/5:\n\n- **Database** (`psql`, `mysql`, `mariadb`, `sqlite3`, including `--command=`/`--execute=`, literal heredocs, and literal `echo`/`printf` pipelines): `DROP TABLE|DATABASE|SCHEMA|INDEX|VIEW`, `TRUNCATE [TABLE]`, and `DELETE FROM` with no `WHERE` or a trailing literal `WHERE 1=1` / `WHERE TRUE`. SQL strings, quoted identifiers, and comments are masked, so prose is not a command.\n- **Filesystem**: `rm` with `-r`/`-R`/`--recursive`; `find -delete`; recognized `find -exec`/`-execdir`; recognized `xargs`. A recursive `rm` whose target is `/`, `/*`, `.`, `..`, `~`, or `$HOME` is additionally `hardDeny`.\n- **Git**: force push (`--force`, `--force-with-lease`, `-f`), `reset --hard`, forced `clean -f -d` → `hardDeny`; forced branch deletion, plain `reset`/`clean`/`restore`/`rebase`, `checkout --`/forced, `stash drop|clear` → recognized (non-hard, `kind: git`).\n- **Legacy hard-deny regexes** (`DENIED_BASH_PATTERNS`): `rm -rf` targeting `/`, `~`, `$HOME`, `..`, `.`; `git reset --hard`; `git clean -fd`/`--force --directories`; force-push forms; `chmod -R 777`; `chown -R`.\n\nBecause `dataLoss` explicitly excludes `kind: \"git\"`, non-hard git matches do not by themselves prompt on the primary — the legacy patterns and the `gitRebase`/`gitBranchDeleteForce` keys are what retain the primary policy for those, as the YOLO doc's precedence table states.\n\n## Configuration that changes the outcome\n\n`loadRuntimeGuardrailsConfig(cwd)` resolves in this order:\n\n1. `GENTLE_PI_AUTONOMOUS_MODE=1` → `{ autonomousMode: true, guardedCommands: {} }`, i.e. the autonomous defaults above, ignoring both files.\n2. Global `${gentlePiConfigHome}/runtime-guardrails.json` (config home `GENTLE_PI_CONFIG_HOME || ~/.pi/gentle-ai`).\n3. Project `<cwd>/.pi/gentle-ai/runtime-guardrails.json`, merged on top: its `autonomousMode` fully overrides; `guardedCommands` merge with project keys winning.\n4. Any read/parse/shape error anywhere → `SAFE_GUARDRAILS_CONFIG` (autonomous off, no overrides), so everything falls back to `confirm`.\n\nShape:\n\n```json\n{ \"autonomousMode\": true,\n  \"guardedCommands\": { \"gitPush\": \"allow\", \"npmPublish\": \"block\" } }\n```\n\nInvalid keys or action values are ignored. Hard denies, `DENIED_BASH_PATTERNS`, and recognized database/filesystem data loss are **not** configurable: they block or require fresh confirmation even when `autonomousMode` is on or a matching delivery action is configured `allow`. The sensitive-path guard for `read`/`write`/`edit` is likewise not part of this config.\n\n## How delegated child sessions differ\n\nA child runs with `GENTLE_PI_AGENTS_CHILD=1`. Because children in the isolated Gentle Shell home don't load the gentle-pi package, `childContextExtensionPaths()` passes `./child-context.ts` and `./child-safety.ts` to every child via `--extension`. `child-safety.ts` registers nothing unless that env var is set, so auto-discovery in the primary stays inert.\n\nOn a `bash` tool call, a child gets `blockChildDestructiveCommand`: **any** recognized destructive command (hard-deny *or* non-hard, including the git forms) is hard-blocked with \"children cannot authorize data loss\" — no prompt, no configuration override, no inherited delivery permission. If the full primary extension is also explicitly loaded in a child, its handler runs the same child check before `confirmCommand`, so destructive commands still block instead of prompting; non-destructive guarded commands that fall through reach `confirmCommand` with `yoloActive` false and, lacking an interactive UI, block rather than ask. YOLO is scoped to the primary: `yoloActive = primaryToolCall && …`, and activation itself fails closed without an interactive primary TUI and an identifiable Git clone.\n\n## What YOLO session mode changes\n\n`/gentle:yolo enable|disable|status` (or the menu; no argument opens a menu, headless falls back to `status`) grants an **in-memory** session+clone-bound permission. There is no environment variable, persisted setting, or model-callable activation tool, and it resets on reload, new/resumed/forked/replaced session, shutdown, or process exit. Activation also appends a system directive for ordinary already-scoped work.\n\nIts shell-guard effect is deliberately narrow: the full evaluation runs first, and then — only when `yoloActive`, no configured push restriction exists, and `isOrdinaryYoloPush` holds — a **single plain `git push`** (exactly one `gitPush` confirm match, no data loss, simple remote/ref args and `-u`/`--set-upstream`) skips the routine confirmation. Compound commands, wrappers (`sudo`, `env`, `sh -c`), repo-changing options, and other push options conservatively keep normal behavior.\n\nYOLO never changes persistent `autonomousMode`, never waives hard denies or recognized database/filesystem data loss (those still require fresh confirmation), never honors an explicit configured push `confirm`/`block` in either layer, and never answers `ask_user` tools, provider consent, maintenance/recovery authorization, or opaque-token decisions.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "A single tool_call handler in extensions/gentle-ai.ts runs the checks; read/write/edit calls on sensitive paths (.ssh, .env, secrets/, .pem/.key files, cloud credentials) are blocked first.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "In a delegated child (GENTLE_PI_AGENTS_CHILD=1) any recognized destructive command is blocked outright, with no confirmation.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The recognizer (lib/destructive-command-guard.ts) flags database commands (psql/mysql/mariadb/sqlite3 running DROP, TRUNCATE or DELETE without WHERE), filesystem commands (recursive rm, find -delete or -exec) and git commands (reset, clean, restore, rebase, forced checkout, stash drop/clear, forced branch deletion), looking through env/sudo/xargs wrappers and sh -c.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "Only some matches are hard denies: recursive rm on /, ., .., ~ or $HOME, git reset --hard, forced git clean and forced push.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "Evaluation order: recognizer hard deny blocks; then DENIED_BASH_PATTERNS block (rm -rf on root-like targets, reset --hard, clean -fd, force push, chmod -R 777, chown -R); then a configured block; then recognized non-git data loss asks for confirmation; then block, confirm or allow among guarded matches; otherwise not guarded.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "Guarded commands are git push, git rebase, forced git branch deletion, npm publish and pi remove; outside autonomous mode every match asks for confirmation.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "Autonomous mode defaults: gitPush allow, gitRebase confirm, gitBranchDeleteForce confirm, npmPublish block, piRemove confirm.",
+          "supported": true
+        },
+        {
+          "id": "f8",
+          "text": "Config: GENTLE_PI_AUTONOMOUS_MODE=1 forces autonomous mode; otherwise <config home>/runtime-guardrails.json then <cwd>/.pi/gentle-ai/runtime-guardrails.json (project overrides); any parse or read error falls back to safe non-autonomous mode.",
+          "supported": true
+        },
+        {
+          "id": "f9",
+          "text": "A confirmation without a UI becomes a block; with a UI it shows a confirm dialog (\"Allow recognized data-loss command?\" for data loss) and blocks if not approved.",
+          "supported": false
+        },
+        {
+          "id": "f10",
+          "text": "YOLO (/gentle:yolo, session-only, primary session only) waives confirmation only for one ordinary git push, unless gitPush is configured as confirm or block; destructive confirmations remain.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Configuration or autonomous mode can allow a hard-denied command.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "YOLO mode skips destructive or data-loss confirmations.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "fe38f9bef3616300",
+      "turnId": "m1-resume-hint-followup",
+      "question": "Suppose gentle-shell was started with --home /tmp/h in project A, the user then used /resume to open a session that belongs to project B, and quit normally. What form does the printed command take? What would be printed if the terminal had been closed (SIGHUP) instead? Answer in English.",
+      "answer": "## Normal quit after `/resume` across projects\n\nThe session's cwd (project B) differs from the launch cwd (project A), so `resumeHandoffFromSession` takes the third branch and hands off `{ sessionId, sessionFile: <absolute path> }`. `gentleShellResumeCommand` then uses the absolute-path shape — deliberately *not* a bare `--session <id>`, because pi resolves a bare id against the launch directory's sessions and would offer to fork the session into project A:\n\n```\nTo resume in gentle-shell: gentle-shell --home /tmp/h --session /abs/path/to/B-session.jsonl\n```\n\n- The home selector is reproduced (`--home /tmp/h`), so the resumed session still runs in the same gentle-shell home.\n- No `--session-dir` is emitted in this branch — the absolute `.jsonl` path makes pi open the file directly regardless of launch directory.\n- The path is shell-quoted for the target platform (POSIX single quotes if it contains anything outside the plain-arg charset); if it couldn't be quoted safely (e.g. Windows with a trailing backslash or cmd-operator characters), the hint is withheld entirely rather than printed broken.\n\nThe handoff itself must still pass validation: the file exists, the id matches pi's session-id charset, the path is absolute, ends in `.jsonl`, and contains no control characters — otherwise pi's line is left alone and nothing extra is printed.\n\n## Quitting via SIGHUP (terminal closed)\n\n**Nothing is printed by gentle-shell.** The launcher marks `terminalHungUp = true` when it receives SIGHUP and forwards it to pi; `planResumeHint` returns `undefined` when `terminalHungUp` is set (and also when stdout isn't a TTY). The rationale is in the code comment: only SIGHUP means the terminal is actually gone — pi may survive a forwarded SIGINT and keep running — so only SIGHUP must silence the hint. The launcher then exits with the signal-derived exit code (128 + signal number) after disposing the temp handoff dir. (If the pipe survived, pi's own hint logic makes the same call on its side; gentle-shell never prints into a dead terminal.)",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Because the session cwd (B) differs from the launch cwd (A), the handoff carries the absolute session file and no --session-dir.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The command is gentle-shell --home /tmp/h --session /absolute/path/to/session.jsonl (pi opens a --session value with a path separator as a file).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "After SIGHUP the launcher marks the terminal as hung up and prints no Gentle Shell hint.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The command uses the bare session id, which would make pi offer a fork into project A.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "6c80bf29a325c425",
+      "turnId": "l3-bash-guard-followup",
+      "question": "For a primary interactive session with no guardrail config files and no environment overrides, classify each of these commands and name the rule that decides it: (1) git push --force-with-lease origin main, (2) rm -rf ./build, (3) psql -c \"DELETE FROM users\", (4) git rebase main. Then say how (2) is handled in a delegated child session. Answer in English.",
+      "answer": "Baseline for all four: `loadRuntimeGuardrailsConfig` returns `{autonomousMode: false, guardedCommands: {}}` (`extensions/gentle-ai.ts:1497-1557`), so every matched guarded key is forced to `confirm` (`:1389-1391`) and no file can add a `block`/`allow`.\n\n| # | Command | Classification | Deciding rule |\n|---|---|---|---|\n| 1 | `git push --force-with-lease origin main` | **Block** | Recognized hard deny |\n| 2 | `rm -rf ./build` | **Confirm** | Recognized filesystem data loss |\n| 3 | `psql -c \"DELETE FROM users\"` | **Confirm** | Recognized database data loss |\n| 4 | `git rebase main` | **Confirm** | Guarded key `gitRebase` |\n\n**1 — Block.** The shared recognizer's git branch computes `force` from `/^--force(?:-with-lease|=|$)/`, which matches `--force-with-lease`, then `hard = action === \"push\" && force` (`lib/destructive-command-guard.ts:124-133`). `evaluateGuardedCommand` tests `destructive.find(m => m.hardDeny)` first and returns `block` before any config or later rule (`gentle-ai.ts:1408-1417`). Decided at step 1, not by `DENIED_BASH_PATTERNS`.\n\n**2 — Confirm.** `rm -rf` matches `/^-[^-]*[rR]/` and is added as `kind: filesystem` (`destructive-command-guard.ts:108`). The target `./build` fails the `rootTarget` regex (`:109`), so `hardDeny` stays false. No hard-deny regex matches (`./build` has no trailing separator, so `DENIED_BASH_PATTERNS[0]` fails). No configured blocks exist, so `destructive.find(m => m.kind !== \"git\")` wins at step 4 (`gentle-ai.ts:1429-1430`) → `confirm` with `dataLoss: true`, title **\"Allow recognized data-loss command?\"**.\n\n**3 — Confirm.** Tokens `psql`, `-c`, `\"DELETE FROM users\"` — the quotes keep the SQL as one argument (`:23-36`). `sqlDestroys` matches `/^\\s*DELETE\\s+FROM\\s+\\S/i` and, with no `WHERE`, returns true (`:48-49`); the payload set reaches `add(DATABASE)` (`:106`). Same step-4 data-loss rule as (2).\n\n**4 — Confirm.** The recognizer tags it `kind: git`, non-hard, because `[\"reset\",\"clean\",\"restore\",\"rebase\"].includes(action)` (`:135-136`). It is therefore excluded from the `kind !== \"git\"` data-loss check. `collectGuardedMatches` hits `gitRebase: /\\bgit\\s+(rebase)\\b/` with `autonomousMode: false` → action `\"confirm\"` (`:1389-1391`), and step 5 selects the first confirmation match (`gentle-ai.ts:1433-1435`). Title: **\"Allow guarded git rebase?\"**.\n\n## (2) in a delegated child\n\nIt never reaches a prompt. `extensions/child-safety.ts:4-6` runs `recognizeDestructiveCommands` and returns `{block: true, reason: \"Gentle AI child safety blocked a recognized destructive command. Return an explicit safer plan to the parent; children cannot authorize data loss.\"}`. The same block happens even if the full primary extension is loaded in the child (`gentle-ai.ts:9553-9556`), and in any case `primaryToolCall` is false there, so `yoloActive` is false and a child `ctx.hasUI` is absent — a leftover `confirm` would degrade to a hard block anyway.\n\nNote the asymmetry: `./build` is a *confirm* in the primary because it is not a hard-deny path; in a child the same non-hard filesystem match is enough to block, because a child only needs *any* recognized destructive match to be stopped.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "(1) Blocked: --force-with-lease counts as a forced push, which the recognizer marks as a hard deny.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "(2) Confirmation as recognized data loss: recursive rm on a non-root target is a filesystem match without hard deny and does not hit the rm -rf deny pattern.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "(3) Confirmation as recognized data loss: DELETE without WHERE through psql is a database match.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "(4) Confirmation (\"Allow guarded git rebase?\"): rebase is a guarded key and confirms outside autonomous mode; the recognizer's git match is neither a hard deny nor data loss.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "In a child session, rm -rf ./build is blocked outright because any recognized destructive command is blocked there.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "git push --force-with-lease is allowed or only confirmed because it is the safer force push.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "rm -rf ./build is blocked in the primary session.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "6d87829b52026c6e",
+      "turnId": "m1-resume-hint-followup",
+      "question": "Suppose gentle-shell was started with --home /tmp/h in project A, the user then used /resume to open a session that belongs to project B, and quit normally. What form does the printed command take? What would be printed if the terminal had been closed (SIGHUP) instead? Answer in English.",
+      "answer": "## Normal quit after `/resume` into project B\n\n**Printed form:**\n\n```\nTo resume in gentle-shell: gentle-shell --home /tmp/h --session /tmp/h/sessions/--<path-to-B>--/<session-id>.jsonl\n```\n\ni.e. the **absolute session-file** form, not the session-id form.\n\nWhy that shape: the handoff snapshot compares `sessionManager.getCwd()` (project B, where the resumed session lives) against `launchCwd` (`process.cwd()` — project A, where gentle-shell was started). They differ, so `resumeHandoffFromSession` returns `{ sessionId, sessionFile: resolvePath(sessionFile) }` and skips the `--session-dir` shape entirely. This is deliberate: pi resolves `--session <id>` through the *launch* directory's session dir, so a bare id would make the resumed command search project A's directory and miss the project B session. Passing the absolute `.jsonl` file path sidesteps that — pi opens a `--session` value containing a path separator directly, whatever the launch directory.\n\nThe home selector is `--home /tmp/h` because `homeSelectorFlags` reproduces the resolved `path` mode; without it the resume would land in the default isolated home (`~/.gentle-shell/agent`) and not find the session there either.\n\n(The path is also what makes this case robust for quoting: a typical `/tmp/...` path matches `PLAIN_ARG`, so it prints unquoted on every platform.)\n\nFor contrast, in the ordinary same-project quit the handoff would be `{ sessionId }` (default session dir) or `{ sessionId, sessionDir }` (non-default dir), printing `gentle-shell --home /tmp/h --session <id>` or `gentle-shell --home /tmp/h --session-dir <dir> --session <id>`.\n\n## Quit via SIGHUP (terminal closed)\n\n**Nothing extra is printed** — neither by the extension nor by the launcher, by two independent guards:\n\n1. The extension only writes the handoff on `session_shutdown` with `reason === \"quit\"` in TUI mode; a signal-driven shutdown isn't a normal quit, so no handoff file is written in the first place.\n2. Even if a handoff existed, `planResumeHint` returns `undefined` when `terminalHungUp` is true — SIGHUP is precisely the signal that marks \"the terminal is gone\" (only SIGHUP sets it; pi may survive a forwarded SIGINT/SIGTERM, so those don't suppress the hint). It also requires `stdoutIsTTY`, which is gone anyway.\n\nThe launcher exits with the signal-derived code (128 + 1 = 129 for SIGHUP) after forwarding the signal to pi, printing no resume suggestion to a terminal that no longer exists.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Because the session cwd (B) differs from the launch cwd (A), the handoff carries the absolute session file and no --session-dir.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The command is gentle-shell --home /tmp/h --session /absolute/path/to/session.jsonl (pi opens a --session value with a path separator as a file).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "After SIGHUP the launcher marks the terminal as hung up and prints no Gentle Shell hint.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The command uses the bare session id, which would make pi offer a fork into project A.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "0cd1429fda8692dc",
+      "turnId": "s3-vim-counts",
+      "question": "Gentle Shell's prompt editor has an optional Vim mode. In its NORMAL-mode motion engine, how are numeric counts parsed and bounded, which keys switch to insert mode and where does each put the cursor, and how do gg and G behave with and without a count? Answer in English.",
+      "answer": "# NORMAL-mode motion engine (`lib/vim-normal-engine.ts`)\n\n## Numeric counts: parsing and bounding\n\nCounts accumulate in engine state (`this.digits`), because a count and its command can arrive in separate keystrokes:\n\n- A leading **`[1-9]`** starts a count; further digits append. A bare **`0`** is *not* a count — it's the \"column 0\" motion — but a `0` while digits are already pending appends (so `10` parses as ten).\n- The adapter may also deliver a count fused with its command in one key event (`/^[0-9]+[^0-9]$/`, e.g. `\"12x\"`); the engine splits it, takes the leading run as digits and the trailing character as the command.\n- On the command key, the count resolves as **`count = Math.min(10000, Number(digits) || 1)`** — hard-capped at **10 000**, defaulting to **1** when no digits were typed (`Number(\"\") || 1`). `explicit = digits.length > 0` distinguishes \"no count\" from \"count 1\", which matters for `gg`/`G`. The buffer resets after every command, so a count never leaks into the next motion.\n\n## Keys that switch to insert mode, and where each puts the cursor\n\nThe `insert` field carries the mode transition: `\"\"` = enter insert at the destination; `\"\\n\"` = insert a newline as part of entering (open a line).\n\n| Key | Cursor lands at | Insert payload |\n|---|---|---|\n| `i` | exactly where it is (unchanged) | `\"\"` |\n| `I` | **first non-whitespace** column of the current line | `\"\"` |\n| `a` | **one grapheme right** of the current column, clamped to the line's last boundary | `\"\"` |\n| `A` | **end of the current line** | `\"\"` |\n| `o` | **end of the current line** | `\"\\n\"` — the newline opens the line *below* |\n| `O` | **column 0** of the current line | `\"\\n\"` — opens the line *above* |\n\nColumns are computed against grapheme-segmented boundaries (`Intl.Segmenter`, granularity `\"grapheme\"`), so multi-codepoint characters count as one position; `a` on an empty line stays at column 0.\n\n## `gg` and `G`\n\nBoth land at **column 0** of the target line and clamp the line number to the last line (`Math.min(lines.length - 1, …)`).\n\n- **`G`**: with an explicit count → line `count − 1` (so `5G` is line 5); without → the **last line** of the buffer. Both clear the sticky `preferred` column.\n- **`gg`** is a two-keystroke sequence: the first `g` only *arms* the pending state, stashing `gLine = count − 1` if a count preceded it (`2gg` → 2), and returns the cursor unchanged. The second `g` consumes it:\n  - **with a count** → line `gLine` (count − 1), column 0;\n  - **without** → **line 0**, the first line, column 0.\n  - Either way it clears `preferred`, and if the next key after `g` is *not* another `g`, the pending `gLine` is discarded and the key falls through to its own motion (so `gj`-style accidents degrade gracefully rather than getting stuck).\n\nThe symmetry is intentional and matches Vim: `gg` defaults to the top of the buffer, `G` to the bottom, and a count turns either into \"go to line N\", counted from 1 (hence the `count − 1`).",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Digits 1-9 start a count; 0 extends a pending count, but with no pending count 0 moves to column 0.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The count defaults to 1 and is capped at 10000.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "i inserts at the cursor, I at the first non-whitespace column, a one position to the right, and A at the end of the line.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "o opens a new line below (inserting a newline at the end of the line) and O a line above (newline at column 0).",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "gg goes to the first line, or with a count N to line N (clamped to the last line), at column 0.",
+          "supported": true
+        },
+        {
+          "id": "f6",
+          "text": "G goes to the last line, or with a count N to line N (clamped), at column 0.",
+          "supported": true
+        },
+        {
+          "id": "f7",
+          "text": "Keys the engine does not know return handled: false.",
+          "supported": false
+        }
+      ],
+      "forbidden": [],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "78840a0cf261ce5c",
+      "turnId": "m1-resume-hint-followup",
+      "question": "Suppose gentle-shell was started with --home /tmp/h in project A, the user then used /resume to open a session that belongs to project B, and quit normally. What form does the printed command take? What would be printed if the terminal had been closed (SIGHUP) instead? Answer in English.",
+      "answer": "**Normal quit:** the handoff takes the \"other project\" branch of `resumeHandoffFromSession`: the session manager's cwd (project B) differs from `launchCwd` (project A, where gentle-shell was started), so the handoff is `{ sessionId, sessionFile: <absolute path to the session .jsonl> }` — no `sessionDir`. The reason for the absolute file path: a bare `--session <id>` at the launch cwd would make pi offer to *fork* the session into project A instead of reopening it.\n\n`homeSelectorFlags` for `--home /tmp/h` yields `[\"--home\", \"/tmp/h\"]`, so the printed line is:\n\n```\nTo resume in gentle-shell: gentle-shell --home /tmp/h --session /…/sessions/--…--/<id>.jsonl\n```\n\ni.e. `gentle-shell --home /tmp/h --session <absolute session file path>`. The path arguments are shell-quoted for the platform (single quotes on POSIX, double quotes on Windows); if some argument can't be quoted safely for that platform's shell, `gentleShellResumeCommand` returns `undefined` and **no line is printed at all**, leaving pi's own hint alone.\n\nNote there is no `--session-dir` flag in this case — the `sessionDir` field only appears when cwd is unchanged but the session lives in a non-default directory under the agent dir.\n\n**SIGHUP (terminal closed):** nothing is printed. The launcher marks `terminalHungUp = true` when it receives SIGHUP (forwarding the signal to pi), and `planResumeHint` returns `undefined` whenever `terminalHungUp` is set — the hint is only ever written to a live TTY. The handoff file is still disposed as usual; the session itself is not lost, it just can't be re-opened by a hint into a dead terminal (the `pi --session <file>` path still works from any terminal later, since it's an absolute file path).",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Because the session cwd (B) differs from the launch cwd (A), the handoff carries the absolute session file and no --session-dir.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The command is gentle-shell --home /tmp/h --session /absolute/path/to/session.jsonl (pi opens a --session value with a path separator as a file).",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "After SIGHUP the launcher marks the terminal as hung up and prints no Gentle Shell hint.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The command uses the bare session id, which would make pi offer a fork into project A.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "4d372aaa00a7dc97",
+      "turnId": "l4-telemetry-followup",
+      "question": "Suppose DO_NOT_TRACK=true (not 1) and CI is unset. Which of the two telemetry paths does Gentle Shell itself still run, and why? And what happens to a usage event that arrives while a previous runtime send is still in progress? Answer in English.",
+      "answer": "## Q1 — `DO_NOT_TRACK=true`, `CI` unset\n\nOnly **the once-per-process nudge** still runs. The runtime usage path is fully off.\n\n**Runtime usage: does not run at all.** `lib/runtime-metrics-policy.ts` is spelling-tolerant by design:\n\n```ts\nconst truthy = (value) => ![\"\", \"0\", \"false\", \"no\", \"off\"].includes(value?.trim().toLowerCase() ?? \"\");\nreturn !truthy(env.DO_NOT_TRACK) && !truthy(env.CI) && !truthy(env.GITHUB_ACTIONS) && env.GENTLE_AI_TELEMETRY?.trim() !== \"0\";\n```\n\n`\"true\"` is not in the falsy list, so `truthy(\"true\")` is `true` and `runtimeMetricsEnvAllows` returns `false`. `extensions/runtime-metrics.ts` therefore returns before installing a single handler — no capture, no attempt slot, no spawn. The same gate also disables child observation in `extensions/gentle-agents.ts` (`observe = runtimeMetricsEnvAllows(deps.env) && …`), and `sendNativeRuntimeEvent` would independently return `\"disabled\"` if it were ever reached. The source comment is explicit about the intent: \"Unknown nonempty spellings veto too: never weaken a native environment veto.\"\n\n**Nudge: still spawns.** `lib/telemetry-trigger.ts` uses exact equality:\n\n```ts\nif (env.DO_NOT_TRACK === \"1\") return \"do-not-track\";\nif (env.GENTLE_AI_TELEMETRY === \"0\") return \"telemetry-disabled\";\nif (env.CI === \"true\") return \"ci\";\n```\n\n`\"true\" !== \"1\"`, `GENTLE_AI_TELEMETRY` is unset, `CI` is unset → no kill switch → on the first primary `before_agent_start` of the process, Pi spawns `<resolved gentle-ai> telemetry trigger --json` detached with `stdio: \"ignore\"`, unref'd, a 3 s unref'd kill timer, and an ignored result. (The equivalent pure predicate `shouldTriggerTelemetry` exists but is only exercised by tests; production goes through `spawnTelemetryTrigger`'s own check.)\n\n**Why the split.** The two paths read the same variable through different predicates — a tolerant \"any truthy spelling vetoes\" gate for runtime usage versus a strict canonical-value kill switch for the nudge. Nothing shares a helper between them, so the spellings diverge. `docs/readme-reference.md` only ever documents `DO_NOT_TRACK=1` as suppressing both, which is exactly why the `true` spelling slips through one of them.\n\n**What Pi can and cannot tell you.** Pi discards the trigger's stdout, never awaits it, and surfaces nothing, so it cannot report which decision `gentle-ai` reached — it only decided to *ask*. The same env is passed through, and the native side re-decides independently (`live` source enum in the policy contract includes `DO_NOT_TRACK` and `CI`), and the `DO_NOT_TRACK` *standard* is \"any non-empty value except 0\". Whether the pinned Go binary honors `true` is not verifiable from this repository, and no fixture here pins it. So: Pi runs one path, and whether anything actually leaves the machine is `gentle-ai`'s call, not Pi's.\n\n## Q2 — a usage event arriving while a send is in flight\n\nIt is **dropped silently and permanently**. There are two module-scoped busy slots, and both are \"one accepted attempt, never a queue\":\n\n1. **`RuntimeMetricsAttempt.offer`** (`lib/runtime-metrics-delivery.ts`) opens with `if (this.#closed || busy) return false;`. The `busy` flag is module-level, so it is shared across extension instances in the process — a second session or a second instance also loses its event, not just the one that is sending. The caller (`submit`) ignores the `false` return value.\n2. **`sendNativeRuntimeEvent`'s own `busy`** (`lib/runtime-metrics-native.ts`) returns `\"discarded\"` when `busy || signal.aborted || current?.() === false`. This is the narrower window in which the subprocess is still alive while the attempt slot has already been freed — for example after a print-mode join timed out, or on an abort path. The `\"discarded\"` result is swallowed by the attempt's `catch`.\n\nNothing accumulates, at any layer: `submit` builds a fresh `RuntimeMetrics` for each event, so dropped rows are never carried into the next send, and there is no outbox, disk store, retry, backoff, cooldown, daemon, flush, or session reconstruction. A later `message_end` simply gets its own fresh offer, unbatched.\n\nTwo details worth noting:\n\n- **The slot is held until the process actually closes**, not until cancellation: `dispose()` aborts and clears a still-scheduled `setImmediate` (releasing `busy` in that case only), but a cancelled-but-running subprocess keeps the slot occupied until the async work settles in its `finally`. That is deliberate — it prevents overlapping processes even if a `SIGKILL`ed child is slow to exit — and it means one slow or hanging send can silently cost several subsequent events.\n- **A dropped child completion stays consumed.** In the `gentle:runtime-metrics:child/v1` handler the `taskId` is added to `owner.children` *before* `submit` is called (the code comment reads \"Busy/failed completions stay consumed\"), so a completion that loses the slot is blocked by the dedupe set from being retried in this process even though nothing was sent.\n\nThis is the documented behavior, not a defect: `docs/telemetry.md` states \"Busy, failed, disabled, or cancelled attempts are discarded silently… Pi retains nothing and never retries.\"",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "Runtime usage reporting is disabled, because its veto treats any non-empty value except 0/false/no/off as truthy.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "The telemetry trigger is still spawned, because its kill switch checks only DO_NOT_TRACK === \"1\"; opting out is then left to the gentle-ai binary.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "A usage event arriving while an attempt is in progress is discarded (offer returns false, or send returns discarded), not queued.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "Both telemetry paths are disabled by DO_NOT_TRACK=true.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "The busy event is queued and sent after the current attempt.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "1c050e8be5500fec",
+      "turnId": "s2-gauge",
+      "question": "Gentle Shell draws small percentage gauges in its bar and panels. How is such a gauge rendered: how many cells by default, which characters, how is the number of filled cells computed, and how is its color chosen? Answer in English.",
+      "answer": "The gauge primitives live in `lib/shell-gauge.ts` — three small pure functions shared by the shell bar and the usage panel.\n\n## Cells and characters\n\n- **Default width: 8 cells** (`GAUGE_CELLS = 8`), used by the shell bar's usage gauge. The usage panel passes its own width, `PANEL_METER_CELLS = 16`, for its per-window meters — so the cell count is a parameter, 8 only by default.\n- **Characters**: filled cells are **`▰`** (`GAUGE_FILLED`) and empty cells are **`▱`** (`GAUGE_EMPTY`), so an 8-cell gauge is a run like `▰▰▰▱▱▱▱▱`. The two glyphs are visually matched pairs (filled/empty of the same shape), which is what makes a mixed run read as one bar.\n\n## How the filled count is computed\n\n```ts\nconst clamped = Math.max(0, Math.min(100, percent ?? 0));\nconst filled = Math.round((clamped / 100) * cells);\nreturn GAUGE_FILLED.repeat(filled) + GAUGE_EMPTY.repeat(cells - filled);\n```\n\n- The input percentage is **clamped to 0..100** first — and `null` (an unknown percentage, e.g. no data yet) is treated as **0**, so a gauge never goes negative, overflows, or crashes on missing data.\n- The filled count is `Math.round(percent/100 × cells)` — **rounding, not truncation**, so 50% of 8 cells is exactly 4, and 94% of 8 rounds to 7.5 → 8. The rest of the cells are `▱`, and since the clamped input guarantees `filled ≤ cells`, the empty run is never negative.\n\n## How the color is chosen\n\n`gaugeTone` maps the *numeric* percentage (independent of the rendered cells) to a theme role:\n\n| Condition | Role |\n|---|---|\n| `percent === null` | **`dim`** — no data is visually distinct from \"empty but known\" |\n| `≥ 95` | **`error`** |\n| `≥ 80` | **`warning`** |\n| otherwise | **`accent`** |\n\n`paintGauge` then colors the bar in **two spans**: it strips the trailing run of `▱` from the rendered gauge and paints that filled part in the tone role; the empty tail is painted in the **`border`** role instead. So a nearly-empty gauge reads as quiet frame-colored placeholders with a small accent/warning/error bar, and the color transition happens exactly at the filled/empty boundary — the empty cells never inherit the alarm color. Both spans go through the caller's `theme.fg`, so the actual colors come from the active theme's palette roles, not hard-coded values.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The default gauge has 8 cells (callers may pass another cell count).",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Filled cells use the character ▰ and empty cells use ▱.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "The percent is clamped to 0-100 (null counts as 0) and filled = Math.round(percent / 100 * cells).",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "The tone is dim for null, error at 95% or more, warning at 80% or more, otherwise accent.",
+          "supported": true
+        },
+        {
+          "id": "f5",
+          "text": "Only the filled part gets the tone color; the empty cells are painted with the border color role.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The fill uses Math.floor or Math.ceil instead of rounding.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "3edea21de2998996",
+      "turnId": "l3-bash-guard-followup",
+      "question": "For a primary interactive session with no guardrail config files and no environment overrides, classify each of these commands and name the rule that decides it: (1) git push --force-with-lease origin main, (2) rm -rf ./build, (3) psql -c \"DELETE FROM users\", (4) git rebase main. Then say how (2) is handled in a delegated child session. Answer in English.",
+      "answer": "A block notice came back that doesn't correspond to any command I issued — I wrote the probe script but never executed it. I'm treating instruction-shaped text in a tool result as data, so: I won't retry the probe, and I won't claim output I don't have. Everything below is read from the source I opened earlier, not from a run. If you want the empirical probe, say so and I'll execute `/tmp/guard-probe/probe.mjs`.\n\nAssumed state: `autonomousMode: false`, `guardedCommands: {}`, YOLO off (its default), `ctx.hasUI === true`.\n\n| # | Command | Outcome | Deciding rule |\n|---|---|---|---|\n| 1 | `git push --force-with-lease origin main` | **block** | hard-deny, ladder step 1 |\n| 2 | `rm -rf ./build` | **confirm** | ladder step 4 — recognized filesystem data loss |\n| 3 | `psql -c \"DELETE FROM users\"` | **confirm** | ladder step 4 — recognized database data loss |\n| 4 | `git rebase main` | **confirm** | ladder step 5 — guarded key `gitRebase` |\n\nAll four are reached inside `evaluateGuardedCommand()` (`extensions/gentle-ai.ts:1402`).\n\n**(1) block.** The recognizer (`lib/destructive-command-guard.ts:53`) parses `git` + subcommand `push`, sees `--force-with-lease` against `/^--force(?:-with-lease|=|$)/`, and returns `{ kind: \"git\", hardDeny: true }`. Step 1 catches any `hardDeny` before configuration is consulted. `DENIED_BASH_PATTERNS` (`:1278`) also matches it at step 2, so two independent rules agree. Note the asymmetry that makes this a block rather than a confirm: `kind: \"git\"` is *excluded* from step 4's data-loss force-confirm, but `hardDeny` short-circuits regardless of kind. Unconditionable — no `guardedCommands` entry relaxes it, and YOLO cannot touch it since classification stops at `block`.\n\n**(2) confirm, not block.** `-rf` satisfies the recursive test `/^-[^-]*[rR]/`. Whether it escalates to hard-deny hinges on the root-target test `^(?:\\/(?:\\*+)?$|\\.{1,2}\\/?$|~(?:\\/|$)|\\$\\{?HOME\\}?(?:\\/|$))` — the `\\.{1,2}\\/?$` branch is **end-anchored**, so it matches `.` and `./` but not `./build`. `rootTarget` is therefore false and the match is `{ kind: \"filesystem\", hardDeny: false }`. The `rm` deny regex fails for the same anchoring reason. No guarded key covers `rm`, so `matches` is empty and step 4 fires: data loss forces `confirm` with `dataLoss: true`, which overrides any `allow` and is exactly the field `isOrdinaryYoloPush()` (`:1783`) requires to be absent. Title comes out as `Allow recognized data-loss command?`.\n\nWorth flagging: `docs/yolo-mode.md` describes the hard-block set as \"`/`, `/*`, `.`, `..`, home **or home descendants**\". Descendants are caught for `~` and `$HOME` (their branches allow a following `/`) but **not** for `.` — so the prose is slightly wider than the code, and `rm -rf ./build` is the case that exposes it. A real doc gap, not a code bug: failing to the confirm path is the conservative direction.\n\n**(3) confirm.** `psql` is in the client list; the tokenizer strips the quotes, so the payload becomes `DELETE FROM users`. `sqlDestroys()` splits on `;`, matches `^\\s*DELETE\\s+FROM\\s+\\S`, and finds no `WHERE` — unbounded delete. Kind is `database`, so step 4 applies like (2). The bounded form `DELETE FROM users WHERE id = 5` would return `not-guarded` and run silently, and `psql -f migration.sql` is never opened at all — that is the documented lexical boundary, not an oversight in this path.\n\n**(4) confirm, but only because no config says otherwise.** The recognizer flags `rebase` (`[\"reset\",\"clean\",\"restore\",\"rebase\"].includes(action)`) as `{ kind: \"git\", hardDeny: false }` — which step 4 *ignores*. What decides it is `GUARDED_KEY_PATTERNS.gitRebase` (`:1339`) resolving to `confirm` purely because `autonomousMode` is false. So (4) is the one command here that is genuinely configurable: `guardedCommands: { \"gitRebase\": \"allow\" }` runs it without a prompt, `block` stops it, and under `autonomousMode: true` the default in `AUTONOMOUS_DEFAULT_ACTIONS` (`:1347`) is also `confirm`. By contrast (1)–(3) are immovable: (1) is a hard-deny, (2)/(3) are step-4 force-confirms that survive any `allow`.\n\n## `rm -rf ./build` in a delegated child\n\nBlocked outright, no dialog. The child runs `blockChildDestructiveCommand()` (`extensions/child-safety.ts:4`), plus the primary-extension branch at `:9555`, both guarded by `GENTLE_PI_AGENTS_CHILD=1`:\n\n```\n{ block: true,\n  reason: \"Gentle AI child safety blocked a recognized destructive command. Return an explicit safer plan to the parent; children cannot authorize data loss.\" }\n```\n\nThe deciding difference is the child predicate is `recognizeDestructiveCommands(command).length > 0` — *any* match, any kind, `hardDeny` not consulted. Two consequences: `rm -rf ./build` blocks where the primary merely confirms, and so does `git rebase main`, because the child rule reads the raw recognizer output rather than the primary's `kind !== \"git\"` filter at step 4. There is no UI to prompt, no config layer for a child to consult, and no YOLO inheritance — `captureReviewSessionIdentity()` returns `undefined` under `GENTLE_PI_AGENTS_CHILD=1`. The child's only path forward is to report a safer plan up to the parent, where the human decides.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "(1) Blocked: --force-with-lease counts as a forced push, which the recognizer marks as a hard deny.",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "(2) Confirmation as recognized data loss: recursive rm on a non-root target is a filesystem match without hard deny and does not hit the rm -rf deny pattern.",
+          "supported": true
+        },
+        {
+          "id": "f3",
+          "text": "(3) Confirmation as recognized data loss: DELETE without WHERE through psql is a database match.",
+          "supported": true
+        },
+        {
+          "id": "f4",
+          "text": "(4) Confirmation (\"Allow guarded git rebase?\"): rebase is a guarded key and confirms outside autonomous mode; the recognizer's git match is neither a hard deny nor data loss.",
+          "supported": false
+        },
+        {
+          "id": "f5",
+          "text": "In a child session, rm -rf ./build is blocked outright because any recognized destructive command is blocked there.",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "git push --force-with-lease is allowed or only confirmed because it is the safer force push.",
+          "present": false
+        },
+        {
+          "id": "x2",
+          "text": "rm -rf ./build is blocked in the primary session.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    },
+    {
+      "sampleId": "1743e31aa1ef8b13",
+      "turnId": "s4-visual-profiles-followup",
+      "question": "If one of ten stored visual profiles has its banner color set to \"red\", what does reading the profiles return, and can a new profile still be saved? What happens on an attempt to save a 65th profile into a valid file? Answer in English.",
+      "answer": "Both answers follow directly from the traced validation rules — no new reading needed.\n\n## Profile with `banner.color: \"red\"`\n\n`BannerConfig.color` must be exactly one of `\"pink\" | \"cyan\" | \"yellow\" | \"green\"` (`lib/visual-profiles.ts:60-62`), so that profile fails `valid()`. And because **any invalid profile poisons the whole file**, `parseVisualProfilesFile` returns `undefined` / `malformed: true` — you don't get the other nine profiles, there's no partial load and no skipping of the bad entry. Reading the catalog yields nothing usable.\n\n**Can a new profile still be saved? No.** Every mutation (`save`/`delete`/`reset`) goes through `existing()`, which refuses to operate on an unreadable or malformed store (`:147-153`) — the corrupt catalog can't be silently clobbered. To recover, the user must fix the file by hand (e.g. change `\"red\"` to a valid color or remove that profile); only then do saves work again.\n\n## Saving a 65th profile into a valid file\n\nA *valid* file can never actually hold 65 profiles — the read side enforces `profiles.length <= MAX_PROFILES (64)` as part of validity. So in practice:\n\n- On a valid file holding 64 profiles, `saveVisualProfile` with a **new** name hits the count check first and throws `RangeError(\"Too many visual profiles.\")` (`:201-202`). The file is untouched; the user must delete a profile or pass `replace` on an existing name (replace doesn't add a new entry, so it isn't blocked by the cap).\n- If somehow the file already contained 65 entries, it wouldn't be valid in the first place — reads return `malformed`, and the mutation guard blocks all saves until it's repaired.",
+      "facts": [
+        {
+          "id": "f1",
+          "text": "The whole file is rejected: reading returns no profiles with malformed: true (the nine valid ones are not returned).",
+          "supported": true
+        },
+        {
+          "id": "f2",
+          "text": "Saving (or deleting) is refused with an error \"Cannot edit unreadable or malformed visual profiles: <path>\".",
+          "supported": false
+        },
+        {
+          "id": "f3",
+          "text": "A 65th new profile throws RangeError \"Too many visual profiles.\"",
+          "supported": true
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "x1",
+          "text": "The invalid profile is skipped and the other nine are returned.",
+          "present": false
+        }
+      ],
+      "language": "en",
+      "source": "judge",
+      "error": null
+    }
+  ]
+}
